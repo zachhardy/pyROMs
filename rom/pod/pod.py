@@ -1,4 +1,5 @@
 import numpy as np
+from numpy import ndarray
 from numpy.linalg import norm
 from scipy.interpolate.ndgriddata import griddata
 import matplotlib.pyplot as plt
@@ -8,8 +9,11 @@ from sklearn.gaussian_process.kernels import ConstantKernel as C
 from sklearn.gaussian_process.kernels import RBF
 
 from .pod_base import PODBase
-from svd import compute_svd
+from ..svd import compute_svd
 
+from typing import Union
+
+TestData = Union[float, ndarray]
 
 class POD(PODBase):
     """Principal Orthogonal Decomposition class.
@@ -24,17 +28,17 @@ class POD(PODBase):
         argument is used.
     """
 
-    def fit(self, X, Y=None):
+    def fit(self, X: ndarray, Y: ndarray = None) -> 'POD':
         """
         Compute the principal orthogonal decomposition
         of the inupt data.
 
         Parameters
         ----------
-        X : ndarray or iterable
+        X : ndarray
             The training snapshots stored row-wise.
             The shape should be (n_snapshots, n_features)
-        Y : ndarray or iterable or None, default None
+        Y : ndarray, default None
             The training parameters stored row-wise.
             The shape should be (n_snapshots, n_parameters)
             if not None.
@@ -50,7 +54,7 @@ class POD(PODBase):
         self.n_parameters = self._parameters.shape[1]
 
         # Perform the SVD
-        U, s, _, rank = compute_svd(X.T)
+        U, s, _, rank = compute_svd(X.T, self.svd_rank)
         self._modes = U  # shape = (n_features, n_snapshots)
         self._singular_values = s
         self.n_modes = rank
@@ -59,7 +63,7 @@ class POD(PODBase):
         self._b = self.transform(X)
         return self
 
-    def transform(self, X):
+    def transform(self, X: ndarray) -> ndarray:
         """
         Transform the data X to the low-rank space.
 
@@ -82,7 +86,7 @@ class POD(PODBase):
         rank = self.n_modes
         return X @ self.modes
 
-    def predict(self, Y, method='cubic'):
+    def predict(self, Y: ndarray, method: str = 'cubic') -> ndarray:
         """
         Predict a full-order result given a set of parameters
         using the provided interpolation method.
@@ -108,7 +112,7 @@ class POD(PODBase):
         amplitudes = self.interpolate(Y, method)
         return amplitudes @ self.modes.T
 
-    def interpolate(self, Y, method):
+    def interpolate(self, Y: TestData, method: str) -> ndarray:
         """
         Interpolate POD mode amplitudes using the given method
         for the given query parameters.

@@ -1,6 +1,13 @@
 import numpy as np
+from numpy import ndarray
 from numpy.linalg import eig, norm
 import matplotlib.pyplot as plt
+
+from typing import Union, Tuple, List
+
+Rank = Union[float, int]
+Eig = Tuple[ndarray, ndarray]
+Dataset = Tuple[ndarray, ndarray]
 
 
 class DMDBase:
@@ -19,30 +26,30 @@ class DMDBase:
     ordering : 'amplitudes' or 'eigenvalues', default 'eiganvalues'
         The sorting method applied to the dynamic modes.
     """
-    def __init__(self, svd_rank=-1, exact=False, ordering='eigenvalues'):
-        self.svd_rank = svd_rank
-        self.exact = exact
-        self.ordering = ordering
-        self.n_snapshots = 0
-        self.n_features = 0
-        self.n_modes = 0
+    def __init__(self, svd_rank: Rank = -1, exact: bool = False,
+                 ordering: str = 'eigenvalues') -> None:
+        self.svd_rank: Rank = svd_rank
+        self.exact: bool = exact
+        self.ordering: str = ordering
+        self.n_snapshots: int = 0
+        self.n_features: int = 0
+        self.n_modes: int = 0
 
-        self.original_timesteps = None
-        self.dmd_timesteps = None
-        self.dt = 0.0
+        self.original_timesteps: ndarray = None
+        self.dt: float = 0.0
 
-        self._snapshots = None
-        self._modes = None
-        self._eigs = None
-        self._A_tilde = None
-        self._b = None
+        self._snapshots: ndarray = None
+        self._modes: ndarray = None
+        self._eigs: ndarray = None
+        self._A_tilde: ndarray = None
+        self._b: ndarray = None
 
-        self._left_svd_modes = None
-        self._right_svd_modes = None
-        self._singular_values = None
+        self._left_svd_modes: ndarray = None
+        self._right_svd_modes: ndarray = None
+        self._singular_values: ndarray = None
 
     @property
-    def snapshots(self):
+    def snapshots(self) -> ndarray:
         """
         Get the original training data.
 
@@ -53,7 +60,7 @@ class DMDBase:
         return self._snapshots
 
     @property
-    def modes(self):
+    def modes(self) -> ndarray:
         """
         Get the DMD modes, stored column-wise.
 
@@ -64,7 +71,7 @@ class DMDBase:
         return self._modes
 
     @property
-    def A_tilde(self):
+    def A_tilde(self) -> ndarray:
         """
         Get the reduced order evolution operator.
 
@@ -75,7 +82,7 @@ class DMDBase:
         return self._Atilde
 
     @property
-    def eigs(self):
+    def eigs(self) -> ndarray:
         """
         Get the eigenvalues of the evolution operator.
 
@@ -86,7 +93,7 @@ class DMDBase:
         return self._eigs
 
     @property
-    def omegas(self):
+    def omegas(self) -> ndarray:
         """
         Get the continuous eigenvalues of the evolution operator.
 
@@ -97,7 +104,7 @@ class DMDBase:
         return np.log(self._eigs, dtype=complex) / self.dt
 
     @property
-    def frequency(self):
+    def frequency(self) -> ndarray:
         """
         Get the temporal frequencies of the eigenvalues of the
         evolution operator.
@@ -109,7 +116,7 @@ class DMDBase:
         return self.omegas.imag / 2.0 / np.pi
 
     @property
-    def amplitudes(self):
+    def amplitudes(self) -> ndarray:
         """
         Get the amplitudes of the DMD modes.
 
@@ -120,7 +127,7 @@ class DMDBase:
         return self._b
 
     @property
-    def dynamics(self):
+    def original_dynamics(self) -> ndarray:
         """
         Get the dynamics of each mode.
 
@@ -132,8 +139,26 @@ class DMDBase:
         exp_arg = np.outer(self.omegas, self.dmd_timesteps - t0)
         return np.exp(exp_arg) * self._b[:, None]
 
+    def dynamics(self, timesteps: ndarray) -> ndarray:
+        """
+        Get the dynamics for a provided set of time steps.
+
+        Parameters
+        ----------
+        timesteps : ndarray
+            A list of times to evaluate the DMD model.
+
+        Returns
+        -------
+        ndarray
+            The dynamics matrix.
+        """
+        t0 = self.original_timesteps[0]
+        exp_arg = np.outer(self.omegas, timesteps - t0)
+        return np.exp(exp_arg) * self.b[:, None]
+
     @property
-    def reconstructed_data(self):
+    def reconstructed_data(self) -> ndarray:
         """
         Get the reconstructed training data.
 
@@ -141,9 +166,10 @@ class DMDBase:
         -------
         ndarray (n_snapshots, n_features)
         """
-        return (self.modes @ self.dynamics).T
+        return (self.modes @ self.original_dynamics).T
 
-    def reconstruction_error(self):
+    @property
+    def reconstruction_error(self) -> float:
         """
         Compute the training data reconstruction error.
 
@@ -156,7 +182,47 @@ class DMDBase:
         X_pred = self.reconstructed_data.real
         return norm(X - X_pred, ord=2) / norm(X, ord=2)
 
-    def compute_error_decay(self):
+    def fit(self, X: ndarray, timesteps: ndarray = None) -> 'DMDBase':
+        """
+        Abstract method to fit the model to training data.
+
+        This must be inplemented in subclasses.
+        """
+        raise NotImplementedError(
+            f'Subclasses must implement abstact method '
+            f'{self.__class__.__name__}.fit')
+
+    def predict(self, timesteps: ndarray) -> ndarray:
+        """
+        Preduct solution results for given timesteps.
+
+        Parameters
+        ----------
+        timesteps : ndarray
+
+        Returns
+        -------
+        ndarray
+        """
+        return (self.modes @ self.dynamics(timesteps)).T
+
+    def compute_timestep_errors(self) -> ndarray:
+        """
+        Compute the errors as a function time step.
+
+        Returns
+        -------
+        ndarray (n_samples,)
+        """
+        X = self.snapshots.real
+        X_pred = self.reconstructed_data.real
+        errors = np.zeros(self.n_snapshots)
+        for t in range(self.n_snapshots):
+            error = norm(X_pred[t] - X[t], ord=2) / norm(X[t], ord=2)
+            errors[t] = error
+        return errors
+
+    def compute_error_decay(self) -> ndarray:
         """
         Compute the decay in the error.
 
@@ -181,7 +247,7 @@ class DMDBase:
         self.fit(X, timesteps)
         return np.array(errors)
 
-    def _construct_lowrank_op(self, X):
+    def _construct_lowrank_op(self, X: ndarray) -> ndarray:
         """
         Construct the low-rank operator from the SVD of X
         and the matrix Y.
@@ -201,7 +267,7 @@ class DMDBase:
         Sr = self._singular_values[:self.n_modes]
         return Ur.conj().T @ X @ Vr * np.reciprocal(Sr)
 
-    def _eig_from_lowrank_op(self, X):
+    def _eig_from_lowrank_op(self, X: ndarray) -> Eig:
         """
 
         Parameters
@@ -241,7 +307,7 @@ class DMDBase:
 
         return eigvals, eigvecs
 
-    def _compute_amplitudes(self):
+    def _compute_amplitudes(self) -> ndarray:
         """
         Compute the amplitudes for the dynamic modes. This
         method fits the modes to the first snapshot, which
@@ -258,7 +324,7 @@ class DMDBase:
                 self._modes[:, m] *= -1.0
         return b
 
-    def _sort_modes(self, ordering='amplitudes'):
+    def _sort_modes(self) -> None:
         """
         Sort the dynamic modes based upon the specified criteria.
         This method updates the ordering of the private attributes.
@@ -267,15 +333,15 @@ class DMDBase:
         ----------
         ordering : 'eigenvalues', 'amplitudes', or None
         """
-        if ordering is None:
+        if self.ordering is None:
             return
-        if ordering not in ['amplitudes', 'eigenvalues']:
+        if self.ordering not in ['amplitudes', 'eigenvalues']:
             raise AssertionError('Invalid ordering type.')
 
         # Determine sorted index mapping
-        if ordering == 'amplitudes':
+        if self.ordering == 'amplitudes':
             idx = np.argsort(self.amplitudes)[::-1]
-        elif ordering == 'eigenvalues':
+        elif self.ordering == 'eigenvalues':
             idx = np.argsort(self.eigs)[::-1]
 
         # Reset _eigs, _b, and _modes based on this
@@ -283,7 +349,7 @@ class DMDBase:
         self._eigs = self._eigs[idx]
         self._modes = self._modes[:, idx]
 
-    def plot_singular_values(self, logscale=True):
+    def plot_singular_values(self, logscale: bool = True) -> None:
         """Plot the singular value spectrum.
 
         Parameters
@@ -306,7 +372,8 @@ class DMDBase:
         plt.tight_layout()
         plt.show()
 
-    def plot_modes(self, grid, mode_index=None):
+    def plot_modes(self, grid: ndarray,
+                   mode_index: Union[int, List[int]] = None) -> None:
         """
         Plot the DMD modes.
 
@@ -363,7 +430,7 @@ class DMDBase:
             plt.tight_layout()
         plt.show()
 
-    def plot_reconstruction_errors(self, logscale=True):
+    def plot_reconstruction_errors(self, logscale: bool = True) -> None:
         """Plot the reconstruction errors.
 
         Parameters
@@ -386,8 +453,29 @@ class DMDBase:
         plt.tight_layout()
         plt.show()
 
+    def plot_timestep_errors(self, logscale: bool = True) -> None:
+        """
+        Plot the reconstruction error as a function of time step.
+
+        Parameters
+        ----------
+        logscale : bool
+        """
+        times = self.original_timesteps
+        errors = self.compute_timestep_errors()
+
+        fig, ax = plt.subplots()
+        ax.set_xlabel('Time (s)', fontsize=12)
+        ax.set_ylabel(r'Relative $\ell^2$ Error', fontsize=12)
+        plotter = plt.semilogy if logscale else plt.plot
+        plotter(times, errors, 'r-*', label='Reconstruction Error')
+        ax.legend()
+        ax.grid(True)
+        plt.tight_layout()
+        plt.show()
+
     @staticmethod
-    def _validate_data(X, timesteps=None):
+    def _validate_data(X: ndarray, timesteps: ndarray = None) -> Dataset:
         """
 
         Parameters

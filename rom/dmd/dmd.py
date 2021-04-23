@@ -1,9 +1,10 @@
 import numpy as np
+from numpy import ndarray
 from numpy.linalg import eig, norm
 import matplotlib.pyplot as plt
 
 from .dmd_base import DMDBase
-from svd import compute_svd
+from ..svd import compute_svd
 
 default = 1.0 - 1.0e-8
 
@@ -24,7 +25,7 @@ class DMD(DMDBase):
         The sorting method applied to the dynamic modes.
     """
 
-    def fit(self, X, timesteps=None):
+    def fit(self, X: ndarray, timesteps: ndarray = None) -> 'DMD':
         """Fit the DMD model to the provided data.
 
         Parameters
@@ -63,7 +64,7 @@ class DMD(DMDBase):
         self._b = self._compute_amplitudes()
 
         # Sort the modes
-        self._sort_modes(self.ordering)
+        self._sort_modes()
 
         # Set timesteps
         if timesteps is None:

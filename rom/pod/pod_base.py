@@ -1,7 +1,12 @@
 import numpy as np
+from numpy import ndarray
 from numpy.linalg import norm
 import matplotlib.pyplot as plt
 
+from typing import Union, Tuple
+
+Rank = Union[float, int]
+Dataset = Tuple[ndarray, ndarray]
 
 class PODBase:
     """Principal Orthogonal Decomposition base class.
@@ -16,21 +21,21 @@ class PODBase:
         argument is used.
     """
 
-    def __init__(self, svd_rank=-1):
-        self.svd_rank = svd_rank
-        self.n_snapshots = 0
-        self.n_features = 0
-        self.n_parameters = 0
+    def __init__(self, svd_rank: Rank = -1) -> None:
+        self.svd_rank: Rank = svd_rank
+        self.n_snapshots: int = 0
+        self.n_features: int = 0
+        self.n_parameters: int = 0
         self.n_modes = 0
 
-        self._snapshots = None
-        self._parameters = None
-        self._modes = None
-        self._singular_values = None
-        self._b = None
+        self._snapshots: ndarray = None
+        self._parameters: ndarray = None
+        self._modes: ndarray = None
+        self._singular_values: ndarray = None
+        self._b: ndarray = None
 
     @property
-    def snapshots(self):
+    def snapshots(self) -> ndarray:
         """
         Get the original training data.
 
@@ -41,7 +46,7 @@ class PODBase:
         return self._snapshots
 
     @property
-    def parameters(self):
+    def parameters(self) -> ndarray:
         """
         Get the original training parameters.
 
@@ -52,7 +57,7 @@ class PODBase:
         return self._parameters
 
     @property
-    def modes(self):
+    def modes(self) -> ndarray:
         """
         Get the POD modes, stored column-wise.
 
@@ -63,7 +68,7 @@ class PODBase:
         return self._modes[:, :self.n_modes]
 
     @property
-    def amplitudes(self):
+    def amplitudes(self) -> ndarray:
         """
         Get the POD mode amplitudes that define the training data.
 
@@ -74,7 +79,7 @@ class PODBase:
         return self._b[:, :self.n_modes]
 
     @property
-    def reconstructed_data(self):
+    def reconstructed_data(self) -> ndarray:
         """
         Get the reconstructed training data using the model.
 
@@ -85,7 +90,7 @@ class PODBase:
         """
         return self.amplitudes @ self.modes.T
 
-    def fit(self, X, Y=None):
+    def fit(self, X: ndarray, Y: ndarray = None) -> 'PODBase':
         """
         Abstract method to fit the model to training data.
 
@@ -95,7 +100,7 @@ class PODBase:
             f'Subclasses must implement abstact method '
             f'{self.__class__.__name__}.fit')
 
-    def reconstruction_error(self):
+    def reconstruction_error(self) -> float:
         """
         Get the error in the reconstructed training data using
         the truncated model.
@@ -109,7 +114,7 @@ class PODBase:
         X_pred = self.reconstructed_data
         return norm(X - X_pred, ord=2) / norm(X, ord=2)
 
-    def untruncated_reconstruction_error(self):
+    def untruncated_reconstruction_error(self) -> float:
         """
         Get the error in the reconstructed training data using
         an untruncated model.
@@ -124,7 +129,7 @@ class PODBase:
         X_pred = X @ self._modes @ self._modes.T
         return norm(X - X_pred, ord=2) / norm(X, ord=2)
 
-    def compute_error_decay(self):
+    def compute_error_decay(self) -> ndarray:
         """Compute the decay in the error.
 
         This method computes the error decay as a function
@@ -143,7 +148,7 @@ class PODBase:
             errors.append(err)
         return np.array(errors)
 
-    def plot_singular_values(self, logscale=True):
+    def plot_singular_values(self, logscale: bool = True) -> None:
         """Plot the singular value spectrum.
 
         Parameters
@@ -166,7 +171,8 @@ class PODBase:
         plt.tight_layout()
         plt.show()
 
-    def plot_coefficients(self, modes=None, normalize=False):
+    def plot_coefficients(self, modes: ndarray = None,
+                          normalize: bool = False) -> None:
         """Plot the POD coefficients as a function of parameter.
 
         Parameters
@@ -218,7 +224,7 @@ class PODBase:
                 plt.tight_layout()
                 plt.show()
 
-    def plot_reconstruction_errors(self, logscale=True):
+    def plot_reconstruction_errors(self, logscale: bool = True) -> None:
         """Plot the reconstruction errors.
 
         Parameters
@@ -242,7 +248,7 @@ class PODBase:
         plt.show()
 
     @staticmethod
-    def center_data(data):
+    def center_data(data: ndarray) -> ndarray:
         """
         Center the data by removing the mean and scaling
         by the standard deviation row-wise.
@@ -265,7 +271,7 @@ class PODBase:
             return (data - mean) / std
 
     @staticmethod
-    def _validate_data(X, Y=None):
+    def _validate_data(X: ndarray, Y: ndarray = None) -> Dataset:
         """
         Validate training data.
 

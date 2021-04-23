@@ -1,7 +1,12 @@
 import numpy as np
+from numpy import ndarray
 
+from typing import Tuple, Union, TypeVar
 
-def compute_svd(X, svd_rank=-1):
+Rank = Union[float, int]
+SVD = Tuple[ndarray, ndarray, ndarray, int]
+
+def compute_svd(X: ndarray, svd_rank: Rank = -1) -> SVD:
     """
     Compute the SVD of X and the truncation rank.
 
