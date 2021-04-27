@@ -448,8 +448,10 @@ class DMDBase:
             fig.suptitle(f'DMD Mode {idx}\n'
                          f'$\omega$ = {self.omegas[idx].real:.2e}'
                          f'{self.omegas[idx].imag:+.2e}j')
+            ax[0].set_xlabel('Grid')
             ax[0].set_ylabel('Real Part')
             if imag:
+                ax[1].set_xlabel('Grid')
                 ax[1].set_ylabel('Imaginary Part')
 
             # Plot data
@@ -508,8 +510,10 @@ class DMDBase:
             fig.suptitle(f'DMD Mode {idx} Dynamics\n'
                          f'$\omega$ = {self.omegas[idx].real:.2e}'
                          f'{self.omegas[idx].imag:+.2e}j')
+            ax[0].set_xlabel('Times')
             ax[0].set_ylabel('Real Part')
             if imag:
+                ax[1].set_ylabel('Times')
                 ax[1].set_ylabel('Imaginary Part')
 
             # Plot data
