@@ -3,6 +3,8 @@ from numpy import ndarray
 from numpy.linalg import norm
 from scipy.linalg import eig
 import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
+from matplotlib.axes import Axes
 
 from typing import Union, Tuple, List
 
@@ -372,20 +374,30 @@ class DMDBase:
         s = self._singular_values
         data = s / sum(s)
 
-        fig, ax = plt.subplots()
+        # Setup plot
+        plot_obj = plt.subplots()
+        fig: Figure = plot_obj[0]
+        ax: Axes = plot_obj[1]
+
+        # Labels
         ax.set_xlabel('Singular Value #', fontsize=12)
         ax.set_ylabel(r'$\sigma / \sum{{\sigma}}$', fontsize=12)
+
+        # Plot data
         plotter = plt.semilogy if logscale else plt.plot
         plotter(data, 'b-*', label='Singular Values')
         ax.axvline(self.n_modes - 1, color='r',
                    ymin=1e-12, ymax=1.0 - 1.0e-12)
+
+        # Postprocessing
         ax.legend()
         ax.grid(True)
         plt.tight_layout()
         plt.show()
 
     def plot_modes(self, grid: ndarray,
-                   mode_index: Union[int, List[int]] = None) -> None:
+                   mode_index: Union[int, List[int]] = None,
+                   imag: bool = False) -> None:
         """
         Plot the DMD modes.
 
@@ -393,8 +405,9 @@ class DMDBase:
         ----------
         grid : ndarray
             The x-axis of the mode plot.
-        mode_index : int or list of int
+        mode_index : int or list of int, default None
             The mode index, or indices, to plot.
+        imag : bool, default False
         """
         # Input checks
         if self._modes is None:
@@ -418,28 +431,97 @@ class DMDBase:
         # Plot the modes
         for idx in mode_index:
             # Get the mode
-            mode = self._modes[:, idx] * self._b[idx]
+            mode = self._modes[:, idx]
             argmax = np.argmax(np.abs(mode))
             if mode[argmax] < 0.0:
                 mode *= -1.0
 
-            # Setup and plot
-            fig, ax = plt.subplots(ncols=2)
-            fig.suptitle(f'DMD Mode {idx}\n'
-                      f'$\omega$ = {self.omegas[idx].real:.2e}'
-                      f'{self.omegas[idx].imag:+.2e}j')
-            ax[0].set_ylabel('Real Part')
-            ax[1].set_ylabel('Imaginary Part')
+            # Setup plot
+            plot_obj = plt.subplots(ncols=2 if imag else 1)
+            fig: Figure = plot_obj[0]
+            if imag:
+                ax: List[Axes] = plot_obj[1]
+            else:
+                ax: List[Axes] = [plot_obj[1]]
 
+            # Labels
+            fig.suptitle(f'DMD Mode {idx}\n'
+                         f'$\omega$ = {self.omegas[idx].real:.2e}'
+                         f'{self.omegas[idx].imag:+.2e}j')
+            ax[0].set_ylabel('Real Part')
+            if imag:
+                ax[1].set_ylabel('Imaginary Part')
+
+            # Plot data
             for c in range(n_components):
                 vals = mode[c::n_components]
                 ax[0].plot(grid, vals.real, label=f'Component {c}')
-                ax[1].plot(grid, vals.imag, label=f'Component {c}')
+                if imag:
+                    ax[1].plot(grid, vals.imag, label=f'Component {c}')
+
+            # Postprocessing
             ax[0].grid(True)
-            ax[1].grid(True)
             ax[0].legend()
-            ax[1].legend()
-            plt.tight_layout()
+            if imag:
+                ax[1].grid(True)
+                ax[1].legend()
+        plt.tight_layout()
+        plt.show()
+
+    def plot_dynamics(self, mode_index: Union[int, List[int]] = None,
+                      imag: bool = False) -> None:
+        """
+        Plot DMD mode dynamics.
+
+        Parameters
+        ----------
+        mode_index : int or list of int
+            The mode index, or indices, to plot.
+        imag : bool, default False
+            Flag to plot imaginary part.
+        """
+        # Input checks
+        if self._modes is None:
+            raise AssertionError('No modes found. The `fit` function '
+                                 'must be used first.')
+
+        # Ensure mode index is iterable
+        if mode_index is None:
+            mode_index = list(range(self.n_modes))
+        elif isinstance(mode_index, int):
+            mode_index = [mode_index]
+
+        # Compute the dynamics
+        dynamics = self.dynamics(self.times)
+
+        # Plot the modes
+        for idx in mode_index:
+            # Setup plot
+            plot_obj = plt.subplots(ncols=2 if imag else 1)
+            fig: Figure = plot_obj[0]
+            if imag:
+                ax: List[Axes] = plot_obj[1]
+            else:
+                ax: List[Axes] = [plot_obj[1]]
+
+            # Labels
+            fig.suptitle(f'DMD Mode {idx} Dynamics\n'
+                         f'$\omega$ = {self.omegas[idx].real:.2e}'
+                         f'{self.omegas[idx].imag:+.2e}j')
+            ax[0].set_ylabel('Real Part')
+            if imag:
+                ax[1].set_ylabel('Imaginary Part')
+
+            # Plot data
+            ax[0].plot(self.times, dynamics[idx].real)
+            if imag:
+                ax[1].plot(grid, dynamics[idx].imag)
+
+            # Postprocessing
+            ax[0].grid(True)
+            if imag:
+                ax[1].grid(True)
+        plt.tight_layout()
         plt.show()
 
     def plot_reconstruction_errors(self, logscale: bool = True) -> None:
@@ -454,14 +536,22 @@ class DMDBase:
         s = self._singular_values
         spectrum = s / sum(s)
 
-        fig, ax = plt.subplots()
+        # Setup plot
+        plt.figure()
+        ax: Axes = plt.gca()
+
+        # Labels
         ax.set_xlabel('# of Modes', fontsize=12)
         ax.set_ylabel(r'Relative $\ell^2$ Error', fontsize=12)
+
+        # Plot data
         plotter = plt.semilogy if logscale else plt.plot
         plotter(spectrum, 'b-*', label='Singular Values')
         plotter(errors, 'r-*', label='Reconstruction Errors')
-        ax.legend()
+
+        # Postprocess
         ax.grid(True)
+        ax.legend()
         plt.tight_layout()
         plt.show()
 
@@ -476,13 +566,21 @@ class DMDBase:
         times = self.times
         errors = self.compute_timestep_errors()
 
-        fig, ax = plt.subplots()
+        # Setup plot
+        plt.figure()
+        ax: Axes = plt.gca()
+
+        # Labels
         ax.set_xlabel('Time (s)', fontsize=12)
         ax.set_ylabel(r'Relative $\ell^2$ Error', fontsize=12)
+
+        # Plot data
         plotter = plt.semilogy if logscale else plt.plot
         plotter(times, errors, 'r-*', label='Reconstruction Error')
-        ax.legend()
+
+        # Postprocess
         ax.grid(True)
+        ax.legend()
         plt.tight_layout()
         plt.show()
 
