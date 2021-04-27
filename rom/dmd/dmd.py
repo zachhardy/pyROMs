@@ -1,15 +1,16 @@
 import numpy as np
 from numpy import ndarray
-from numpy.linalg import eig, norm
+from numpy.linalg import norm
+from scipy.linalg import eig
 import matplotlib.pyplot as plt
 
 from .dmd_base import DMDBase
 from ..svd import compute_svd
 
-default = 1.0 - 1.0e-8
 
 class DMD(DMDBase):
-    """Dynamic mode decomposition model.
+    """
+    Dynamic mode decomposition model.
 
     Parameters
     ----------
@@ -25,18 +26,21 @@ class DMD(DMDBase):
         The sorting method applied to the dynamic modes.
     """
 
-    def fit(self, X: ndarray, timesteps: ndarray = None) -> 'DMD':
+    def fit(self, X: ndarray, times: ndarray = None,
+            verbose: bool = True) -> 'DMD':
         """Fit the DMD model to the provided data.
 
         Parameters
         ----------
         X : ndarray (n_snapshots, n_features)
             A matrix of snapshots stored row-wise.
-        timesteps : ndarray (n_snapshots), default None
+        times : ndarray (n_snapshots), default None
             Array of timestamps for the snapshots.
+        verbose : bool, default True
+            Flag for printing model summary.
         """
         # Validate inputs
-        X, timesteps = self._validate_data(X, timesteps)
+        X, times = self._validate_data(X, times)
 
         # Save the input data
         self._snapshots = np.copy(X)
@@ -58,7 +62,9 @@ class DMD(DMDBase):
         self._A_tilde = self._construct_lowrank_op(X1)
 
         # Eigendecomposition of Atilde
-        self._eigs, self._modes = self._eig_from_lowrank_op(X1)
+        tmp = self._eig_from_lowrank_op(X1)
+        self._eigs = tmp[0]
+        self._modes = tmp[2]
 
         # Compute amplitudes
         self._b = self._compute_amplitudes()
@@ -66,10 +72,27 @@ class DMD(DMDBase):
         # Sort the modes
         self._sort_modes()
 
-        # Set timesteps
-        if timesteps is None:
-            timesteps = np.arange(0.0, self.n_snapshots, 1.0)
-        self.original_timesteps = timesteps
-        self.dmd_timesteps = timesteps
-        self.dt = timesteps[1] - timesteps[0]
+        # Set times
+        if times is None:
+            times = np.arange(0.0, self.n_snapshots, 1.0)
+        self.times = times
+        self.dt = times[1] - times[0]
+
+        # Print summary
+        if verbose:
+            print('\n*** DMD model information ***')
+
+            n = self.n_modes
+            print(f'Number of Modes:\t\t{self.n_modes}')
+
+            s = self._singular_values
+            print(f'Smallest Kept Singular Value:\t{s[n - 1] / sum(s):.3e}')
+
+            ic = self.snapshots[0]
+            fit = (self.modes @ self.amplitudes).ravel()
+            ic_error = norm(ic - fit, ord=2) / norm(ic, ord=2)
+            print(f'Initial Condition Error:\t{ic_error:.3e}')
+
+            error = self.reconstruction_error
+            print(f'Reconstruction Error:\t\t{error:.3e}')
         return self

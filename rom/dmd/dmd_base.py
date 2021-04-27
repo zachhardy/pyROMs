@@ -1,13 +1,14 @@
 import numpy as np
 from numpy import ndarray
-from numpy.linalg import eig, norm
+from numpy.linalg import norm
+from scipy.linalg import eig
 import matplotlib.pyplot as plt
 
 from typing import Union, Tuple, List
 
 Rank = Union[float, int]
-Eig = Tuple[ndarray, ndarray]
-Dataset = Tuple[ndarray, ndarray]
+Eig = Tuple[ndarray, ndarray, ndarray]
+Inputs = Tuple[ndarray, ndarray]
 
 
 class DMDBase:
@@ -31,11 +32,12 @@ class DMDBase:
         self.svd_rank: Rank = svd_rank
         self.exact: bool = exact
         self.ordering: str = ordering
+
         self.n_snapshots: int = 0
         self.n_features: int = 0
         self.n_modes: int = 0
 
-        self.original_timesteps: ndarray = None
+        self.times: ndarray = None
         self.dt: float = 0.0
 
         self._snapshots: ndarray = None
@@ -60,17 +62,6 @@ class DMDBase:
         return self._snapshots
 
     @property
-    def modes(self) -> ndarray:
-        """
-        Get the DMD modes, stored column-wise.
-
-        Returns
-        -------
-        ndarray (n_features, n_modes)
-        """
-        return self._modes
-
-    @property
     def A_tilde(self) -> ndarray:
         """
         Get the reduced order evolution operator.
@@ -80,6 +71,17 @@ class DMDBase:
         ndarray (n_modes, n_modes)
         """
         return self._Atilde
+
+    @property
+    def modes(self) -> ndarray:
+        """
+        Get the DMD modes, stored column-wise.
+
+        Returns
+        -------
+        ndarray (n_features, n_modes)
+        """
+        return self._modes
 
     @property
     def eigs(self) -> ndarray:
@@ -102,6 +104,18 @@ class DMDBase:
         ndarray (n_modes,)
         """
         return np.log(self._eigs, dtype=complex) / self.dt
+
+    @property
+    def growth_rate(self) -> ndarray:
+        """
+        Get the temporal growth rates of the eigenvalues of the
+        evolution operator.
+
+        Returns
+        -------
+        ndarray (n_modes,)
+        """
+        return self.omegas.real
 
     @property
     def frequency(self) -> ndarray:
@@ -127,37 +141,6 @@ class DMDBase:
         return self._b
 
     @property
-    def original_dynamics(self) -> ndarray:
-        """
-        Get the dynamics of each mode.
-
-        Returns
-        -------
-        ndarray (n_modes, n_snapshots)
-        """
-        t0 = self.original_timesteps[0]
-        exp_arg = np.outer(self.omegas, self.dmd_timesteps - t0)
-        return np.exp(exp_arg) * self._b[:, None]
-
-    def dynamics(self, timesteps: ndarray) -> ndarray:
-        """
-        Get the dynamics for a provided set of time steps.
-
-        Parameters
-        ----------
-        timesteps : ndarray
-            A list of times to evaluate the DMD model.
-
-        Returns
-        -------
-        ndarray
-            The dynamics matrix.
-        """
-        t0 = self.original_timesteps[0]
-        exp_arg = np.outer(self.omegas, timesteps - t0)
-        return np.exp(exp_arg) * self.b[:, None]
-
-    @property
     def reconstructed_data(self) -> ndarray:
         """
         Get the reconstructed training data.
@@ -166,7 +149,8 @@ class DMDBase:
         -------
         ndarray (n_snapshots, n_features)
         """
-        return (self.modes @ self.original_dynamics).T
+        dynamics = self.dynamics(self.times)
+        return (self.modes @ dynamics).T
 
     @property
     def reconstruction_error(self) -> float:
@@ -182,7 +166,26 @@ class DMDBase:
         X_pred = self.reconstructed_data.real
         return norm(X - X_pred, ord=2) / norm(X, ord=2)
 
-    def fit(self, X: ndarray, timesteps: ndarray = None) -> 'DMDBase':
+    def dynamics(self, times: ndarray) -> ndarray:
+        """
+        Get the dynamics for a provided set of time steps.
+
+        Parameters
+        ----------
+        times : ndarray
+            A list of times to evaluate the DMD model.
+
+        Returns
+        -------
+        ndarray
+            The dynamics matrix.
+        """
+        t0 = self.times[0]
+        exp_arg = np.outer(self.omegas, times - t0)
+        return np.exp(exp_arg) * self._b[:, None]
+
+    def fit(self, X: ndarray, times: ndarray = None,
+            default_cutoff: bool = True) -> 'DMDBase':
         """
         Abstract method to fit the model to training data.
 
@@ -192,60 +195,19 @@ class DMDBase:
             f'Subclasses must implement abstact method '
             f'{self.__class__.__name__}.fit')
 
-    def predict(self, timesteps: ndarray) -> ndarray:
+    def predict(self, times: ndarray) -> ndarray:
         """
         Preduct solution results for given timesteps.
 
         Parameters
         ----------
-        timesteps : ndarray
+        times : ndarray
 
         Returns
         -------
         ndarray
         """
-        return (self.modes @ self.dynamics(timesteps)).T
-
-    def compute_timestep_errors(self) -> ndarray:
-        """
-        Compute the errors as a function time step.
-
-        Returns
-        -------
-        ndarray (n_samples,)
-        """
-        X = self.snapshots.real
-        X_pred = self.reconstructed_data.real
-        errors = np.zeros(self.n_snapshots)
-        for t in range(self.n_snapshots):
-            error = norm(X_pred[t] - X[t], ord=2) / norm(X[t], ord=2)
-            errors[t] = error
-        return errors
-
-    def compute_error_decay(self) -> ndarray:
-        """
-        Compute the decay in the error.
-
-        This method computes the error decay as a function
-        of truncation level.
-
-        Returns
-        -------
-        ndarray (n_modes,)
-            The reproduction error as a function of n_modes.
-        """
-        errors = []
-        svd_rank_original = self.svd_rank
-        X, timesteps = self.snapshots, self.original_timesteps
-        for n in range(self.n_snapshots - 1):
-            self.svd_rank = n + 1
-            self.fit(X, timesteps)
-            X_pred = self.reconstructed_data
-            error = norm(X - X_pred, ord=2) / norm(X, ord=2)
-            errors += [error]
-        self.svd_rank = svd_rank_original
-        self.fit(X, timesteps)
-        return np.array(errors)
+        return (self.modes @ self.dynamics(times)).T
 
     def _construct_lowrank_op(self, X: ndarray) -> ndarray:
         """
@@ -280,32 +242,43 @@ class DMDBase:
         ndarray : (n_modes,)
             The eigenvalues of the evolution operator.
         ndarray : (n_features, n_modes)
-            The eigenvectors of the evolution operator.
+            The left eigenvectors of the evolution operator.
+        ndarray : (n_features, n_modes)
+            The right eigenvectors of the evolution operator.
+
         """
-        lowrank_eigvals, lowrank_eigvecs = eig(self._A_tilde)
+        tmp = eig(self._A_tilde, left=True)
+        lowrank_eigvals = tmp[0]
+        lowrank_eigvecs_l = tmp[1]
+        lowrank_eigvecs_r = tmp[2]
 
         # Filter out zero eigenvalues
         non_zero_mask = lowrank_eigvals != 0.0
         lowrank_eigvals = lowrank_eigvals[non_zero_mask]
-        lowrank_eigvecs = lowrank_eigvecs.T[non_zero_mask].T
+        lowrank_eigvecs_l = lowrank_eigvecs_l.T[non_zero_mask].T
+        lowrank_eigvecs_r = lowrank_eigvecs_r.T[non_zero_mask].T
 
         # Compute the full-rank eigenvectors
         if self.exact:
             Vr = self._right_svd_modes[:, :self.n_modes]
-            Sr = self._singular_values[:self.n_modes]
-            eigvecs = (X @ Vr * np.reciprocal(Sr)) @ lowrank_eigvecs
+            inv_Sr = np.reciprocal(self._singular_values[:self.n_modes])
+            inv_eigs = np.reciprocal(lowrank_eigvals)
+            eigvecs_l = (X @ Vr * inv_Sr) @ lowrank_eigvecs_l * inv_eigs
+            eigvecs_r = (X @ Vr * inv_Sr) @ lowrank_eigvecs_r * inv_eigs
         else:
             Ur = self._left_svd_modes[:, :self.n_modes]
-            eigvecs = Ur @ lowrank_eigvecs
+            eigvecs_l = Ur @ lowrank_eigvecs_l
+            eigvecs_r = Ur @ lowrank_eigvecs_r
 
         # Normalize eigenvectors and ensure positive max abs
         for m in range(self.n_modes):
-            eigvecs[:, m] /= norm(eigvecs[:, m])
+            eigvecs_l[:, m] /= norm(eigvecs_l[:, m])
+            eigvecs_r[:, m] /= norm(eigvecs_r[:, m])
 
         # Full-rank eigenvalues are the low-rank eigenvalues
         eigvals = lowrank_eigvals
 
-        return eigvals, eigvecs
+        return eigvals, eigvecs_l, eigvecs_r
 
     def _compute_amplitudes(self) -> ndarray:
         """
@@ -313,11 +286,13 @@ class DMDBase:
         method fits the modes to the first snapshot, which
         is assumed to be the initial condition.
 
-        :return: The dynamic mode amplitudes.
-        :rtype: numpy.ndarray (n_modes,)
+        Returns
+        -------
+        ndarray (n_modes,)
+            The dynamic mode amplitudes.
         """
         x = self.snapshots[0]
-        b = np.linalg.lstsq(self.modes, x, rcond=None)[0]
+        b: ndarray = np.linalg.lstsq(self.modes, x, rcond=None)[0]
         for m in range(self.n_modes):
             if b[m].real < 0.0:
                 b[m] *= -1.0
@@ -328,10 +303,6 @@ class DMDBase:
         """
         Sort the dynamic modes based upon the specified criteria.
         This method updates the ordering of the private attributes.
-
-        Parameters
-        ----------
-        ordering : 'eigenvalues', 'amplitudes', or None
         """
         if self.ordering is None:
             return
@@ -348,6 +319,47 @@ class DMDBase:
         self._b = self._b[idx]
         self._eigs = self._eigs[idx]
         self._modes = self._modes[:, idx]
+
+    def compute_timestep_errors(self) -> ndarray:
+        """
+        Compute the errors as a function time step.
+
+        Returns
+        -------
+        ndarray (n_samples,)
+        """
+        X = self.snapshots.real
+        X_pred = self.reconstructed_data.real
+        errors = np.zeros(self.n_snapshots)
+        for t in range(self.n_snapshots):
+            error = norm(X_pred[t] - X[t], ord=2) / norm(X[t], ord=2)
+            errors[t] = error
+        return errors
+
+    def compute_error_decay(self) -> ndarray:
+        """
+        Compute the decay in the error.
+
+        This method computes the error decay as a function
+        of truncation level.
+
+        Returns
+        -------
+        ndarray (n_modes,)
+            The reproduction error as a function of n_modes.
+        """
+        errors = []
+        svd_rank_original = self.svd_rank
+        X, times = self.snapshots, self.times
+        for n in range(self.n_snapshots - 1):
+            self.svd_rank = n + 1
+            self.fit(X, times, verbose=False)
+            X_pred = self.reconstructed_data
+            error = norm(X - X_pred, ord=2) / norm(X, ord=2)
+            errors += [error]
+        self.svd_rank = svd_rank_original
+        self.fit(X, times, verbose=False)
+        return np.array(errors)
 
     def plot_singular_values(self, logscale: bool = True) -> None:
         """Plot the singular value spectrum.
@@ -461,7 +473,7 @@ class DMDBase:
         ----------
         logscale : bool
         """
-        times = self.original_timesteps
+        times = self.times
         errors = self.compute_timestep_errors()
 
         fig, ax = plt.subplots()
@@ -475,15 +487,16 @@ class DMDBase:
         plt.show()
 
     @staticmethod
-    def _validate_data(X: ndarray, timesteps: ndarray = None) -> Dataset:
+    def _validate_data(X: ndarray, times: ndarray = None) -> Inputs:
         """
 
         Parameters
         ----------
-        X : ndarray (n_snapshots, n_features) or iterable
+        X : ndarray (n_snapshots, n_features)
             A matrix of snapshots stored row-wise.
-        original_time : dict
-            Dictionary containing t_start, t_end, and dt keys.
+        times : ndarray (n_snapshots,)
+            The timestamps of the snapshots.
+
         Returns
         -------
         The inputs
@@ -491,16 +504,16 @@ class DMDBase:
         # Check types for X and timesteps
         if not isinstance(X, (np.ndarray, list)):
             raise TypeError('X must be a ndarray or list.')
-        if timesteps is not None:
-            if not isinstance(timesteps, (np.ndarray, list)):
-                raise TypeError('timesteps must be a ndarray or list.')
+        if times is not None:
+            if not isinstance(times, (np.ndarray, list)):
+                raise TypeError('times must be a ndarray or list.')
 
         # Format X
         X = np.asarray(X)
         if X.ndim != 2:
             raise AssertionError('X must be 2D data.')
 
-        # Format timesteps
-        if timesteps is not None:
-            timesteps = np.asarray(timesteps).ravel()
-        return X, timesteps
+        # Format times
+        if times is not None:
+            times = np.asarray(times).ravel()
+        return X, times
