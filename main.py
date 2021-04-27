@@ -39,7 +39,9 @@ for i in range(len(ax)):
         elif i == j == 1:
             cs = ax_ij.pcolormesh(X, T, f_dmd.real)
         fig.colorbar(cs, ax=ax_ij)
-
 plt.tight_layout()
 plt.show()
+
+dmd.plot_modes(x, [0, 1])
+dmd.plot_dynamics([0, 1])
 
