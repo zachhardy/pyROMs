@@ -510,10 +510,10 @@ class DMDBase:
             fig.suptitle(f'DMD Mode {idx} Dynamics\n'
                          f'$\omega$ = {self.omegas[idx].real:.2e}'
                          f'{self.omegas[idx].imag:+.2e}j')
-            ax[0].set_xlabel('Times')
+            ax[0].set_xlabel('Time')
             ax[0].set_ylabel('Real Part')
             if imag:
-                ax[1].set_ylabel('Times')
+                ax[1].set_ylabel('Time')
                 ax[1].set_ylabel('Imaginary Part')
 
             # Plot data
@@ -528,8 +528,113 @@ class DMDBase:
         plt.tight_layout()
         plt.show()
 
+    def plot_modes_and_dynamics(self, grid: ndarray,
+                                mode_index: Union[int, List[int]] = None,
+                                imag: bool = False,
+                                logscale: bool = False) -> None:
+        """
+        Plot the DMD mode and dynamics.
+
+        Parameters
+        ----------
+        grid : ndarray
+            The x-axis of the mode plot.
+        mode_index : int or list of int, default None
+            The mode index, or indices, to plot.
+        imag : bool, default False
+            Flag to plot imaginary part.
+        logscale : bool, default False
+            Flag to plot dynamics on a log-scale.
+
+        """
+        # Input checks
+        if self._modes is None:
+            raise AssertionError('No modes found. The `fit` function '
+                                 'must be used first.')
+        if grid is None:
+            raise AssertionError('A grid must be supplied.')
+
+        # Ensure mode index is iterable
+        if mode_index is None:
+            mode_index = list(range(self.n_modes))
+        elif isinstance(mode_index, int):
+            mode_index = [mode_index]
+
+        # Number of components
+        n_components = self.n_features // len(grid)
+        if not isinstance(n_components, int):
+            raise AssertionError('Modes incompatible with the '
+                                 'supplied grid.')
+
+        # Compute the dynamics
+        dynamics = self.dynamics(self.times)
+
+        # Plot the modes
+        for idx in mode_index:
+            # Get the mode
+            mode = self._modes[:, idx]
+            argmax = np.argmax(np.abs(mode))
+            if mode[argmax] < 0.0:
+                mode *= -1.0
+
+            # Setup plot
+            n_rows = 2 if imag else 1
+            plot_obj = plt.subplots(n_rows, 2)
+            fig: Figure = plot_obj[0]
+            if imag:
+                ax: List[List[Axes]] = plot_obj[1]
+            else:
+                ax: List[List[Axes]] = [plot_obj[1]]
+
+            # Labels
+            fig.suptitle(f'DMD Mode {idx}\n'
+                         f'$\omega$ = {self.omegas[idx].real:.2e}'
+                         f'{self.omegas[idx].imag:+.2e}j')
+            ax[0][0].set_title('Profile')
+            ax[0][1].set_title('Dynamics')
+            ax[0][0].set_xlabel('Grid')
+            ax[0][1].set_xlabel('Time')
+            ax[0][0].set_ylabel('Real Part')
+            ax[0][1].set_ylabel('Real Part')
+            if imag:
+                ax[1][0].set_title('Profile')
+                ax[1][1].set_title('Dynamics')
+                ax[1][0].set_xlabel('Grid')
+                ax[1][1].set_xlabel('Time')
+                ax[1][0].set_ylabel('Imaginary Part')
+                ax[1][1].set_ylabel('Imaginary Part')
+
+            # Plot modes
+            for c in range(n_components):
+                vals = mode[c::n_components]
+                ax[0][0].plot(grid, vals.real, label=f'Component {c}')
+                if imag:
+                    ax[1][0].plot(grid, vals.imag, label=f'Component {c}')
+
+            # Plot dynamics
+            if not logscale:
+                ax[0][1].plot(self.times, dynamics.real[idx])
+                if imag:
+                    ax[1][1].plot(self.times, dynamics.imag[idx])
+            else:
+                ax[0][1].semilogy(self.times, dynamics.real[idx])
+                if imag:
+                    ax[1][1].semilogy(self.times, dynamics.imag[idx])
+
+            # Postprocessing
+            ax[0][0].grid(True)
+            ax[0][1].grid(True)
+            ax[0][0].legend()
+            if imag:
+                ax[1][0].grid(True)
+                ax[1][1].grid(True)
+                ax[1][0].legend()
+            plt.tight_layout()
+        plt.show()
+
     def plot_reconstruction_errors(self, logscale: bool = True) -> None:
-        """Plot the reconstruction errors.
+        """
+        Plot the reconstruction errors.
 
         Parameters
         ----------
