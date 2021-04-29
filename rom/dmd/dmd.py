@@ -1,7 +1,7 @@
 import numpy as np
 from numpy import ndarray
 from numpy.linalg import norm
-from scipy.linalg import eig
+from scipy.linalg import eig, pinv2
 import matplotlib.pyplot as plt
 
 from .dmd_base import DMDBase
@@ -26,21 +26,19 @@ class DMD(DMDBase):
         The sorting method applied to the dynamic modes.
     """
 
-    def fit(self, X: ndarray, times: ndarray = None,
-            verbose: bool = True) -> 'DMD':
-        """Fit the DMD model to the provided data.
+    def fit(self, X: ndarray, verbose: bool = True) -> 'DMD':
+        """
+        Fit the DMD model to the provided data.
 
         Parameters
         ----------
         X : ndarray (n_snapshots, n_features)
             A matrix of snapshots stored row-wise.
-        times : ndarray (n_snapshots), default None
-            Array of timestamps for the snapshots.
         verbose : bool, default True
             Flag for printing model summary.
         """
         # Validate inputs
-        X, times = self._validate_data(X, times)
+        X = self._validate_data(X)
 
         # Save the input data
         self._snapshots = np.copy(X)
@@ -72,11 +70,13 @@ class DMD(DMDBase):
         # Sort the modes
         self._sort_modes()
 
-        # Set times
-        if times is None:
-            times = np.arange(0.0, self.n_snapshots, 1.0)
-        self.times = times
-        self.dt = times[1] - times[0]
+        # Set original and DMD time
+        n = self.n_snapshots
+        self.original_time = {'t0': 0, 'tf': n - 1, 'dt': 1}
+        self.dmd_time = {'t0': 0, 'tf': n - 1, 'dt': 1}
+
+        # Set initialized flag
+        self.initialized = True
 
         # Print summary
         if verbose:

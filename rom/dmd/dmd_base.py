@@ -1,7 +1,7 @@
 import numpy as np
 from numpy import ndarray
 from numpy.linalg import norm
-from scipy.linalg import eig
+from scipy.linalg import eig, pinv
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.axes import Axes
@@ -34,13 +34,14 @@ class DMDBase:
         self.svd_rank: Rank = svd_rank
         self.exact: bool = exact
         self.ordering: str = ordering
+        self.initialized: bool = False
 
         self.n_snapshots: int = 0
         self.n_features: int = 0
         self.n_modes: int = 0
 
-        self.times: ndarray = None
-        self.dt: float = 0.0
+        self.original_time: dict = None
+        self.dmd_time: dict = None
 
         self._snapshots: ndarray = None
         self._modes: ndarray = None
@@ -52,16 +53,55 @@ class DMDBase:
         self._right_svd_modes: ndarray = None
         self._singular_values: ndarray = None
 
-    @property
-    def snapshots(self) -> ndarray:
+    def fit(self, X: ndarray) -> 'DMDBase':
         """
-        Get the original training data.
+        Abstract method to fit the model to training data.
+
+        This must be inplemented in subclasses.
+        """
+        raise NotImplementedError(
+            f'Subclasses must implement abstact method '
+            f'{self.__class__.__name__}.fit')
+
+    def predict(self, times: ndarray) -> ndarray:
+        """
+        Preduct solution results for given timesteps.
+
+        Parameters
+        ----------
+        times : ndarray
 
         Returns
         -------
-        ndarray (n_snapshots, n_features)
+        ndarray
         """
-        return self._snapshots
+        return (self.modes @ self.dynamics(times)).T
+
+    @property
+    def original_timesteps(self) -> ndarray:
+        """
+        Generate the original time steps.
+
+        Returns
+        -------
+        ndarray (n_snapshots,)
+        """
+        dt = self.original_time['dt']
+        return np.arange(self.original_time['t0'],
+                         self.original_time['tf'] + dt, dt)
+
+    @property
+    def dmd_timesteps(self) -> ndarray:
+        """
+        Generate the DMD time steps.
+
+        Returns
+        -------
+        ndarray
+        """
+        dt = self.dmd_time['dt']
+        return np.arange(self.dmd_time['t0'],
+                         self.dmd_time['tf'] + dt, dt)
 
     @property
     def A_tilde(self) -> ndarray:
@@ -86,6 +126,36 @@ class DMDBase:
         return self._modes
 
     @property
+    def dynamics(self) -> ndarray:
+        """
+        Get the dynamics for a provided set of time steps.
+
+        Parameters
+        ----------
+        times : ndarray
+            A list of times to evaluate the DMD model.
+
+        Returns
+        -------
+        ndarray
+            The dynamics matrix.
+        """
+        t0 = self.original_time['t0']
+        exp_arg = np.outer(self.omegas, self.dmd_timesteps - t0)
+        return np.exp(exp_arg) * self._b[:, None]
+
+    @property
+    def amplitudes(self) -> ndarray:
+        """
+        Get the amplitudes of the DMD modes.
+
+        Returns
+        -------
+        ndarray (n_modes,)
+        """
+        return self._b
+
+    @property
     def eigs(self) -> ndarray:
         """
         Get the eigenvalues of the evolution operator.
@@ -105,7 +175,8 @@ class DMDBase:
         -------
         ndarray (n_modes,)
         """
-        return np.log(self._eigs, dtype=complex) / self.dt
+        dt = self.original_time['dt']
+        return np.log(self.eigs, dtype=complex) / dt
 
     @property
     def growth_rate(self) -> ndarray:
@@ -132,15 +203,28 @@ class DMDBase:
         return self.omegas.imag / 2.0 / np.pi
 
     @property
-    def amplitudes(self) -> ndarray:
+    def operator(self) -> ndarray:
         """
-        Get the amplitudes of the DMD modes.
+        Construct the approximate full order evolution operator.
 
         Returns
         -------
-        ndarray (n_modes,)
+        ndarray (n_features, n_features)
         """
-        return self._b
+        rcond = 10.0 * np.finfo(float).eps
+        pinv_modes = pinv(self.modes, rcond=rcond)
+        return self.modes @ np.diag(self.eigs) @ pinv_modes
+
+    @property
+    def snapshots(self) -> ndarray:
+        """
+        Get the original training data.
+
+        Returns
+        -------
+        ndarray (n_snapshots, n_features)
+        """
+        return self._snapshots
 
     @property
     def reconstructed_data(self) -> ndarray:
@@ -151,65 +235,7 @@ class DMDBase:
         -------
         ndarray (n_snapshots, n_features)
         """
-        dynamics = self.dynamics(self.times)
-        return (self.modes @ dynamics).T
-
-    @property
-    def reconstruction_error(self) -> float:
-        """
-        Compute the training data reconstruction error.
-
-        Returns
-        -------
-        float
-            The relative l2 reconstruction error.
-        """
-        X = self.snapshots.real
-        X_pred = self.reconstructed_data.real
-        return norm(X - X_pred, ord=2) / norm(X, ord=2)
-
-    def dynamics(self, times: ndarray) -> ndarray:
-        """
-        Get the dynamics for a provided set of time steps.
-
-        Parameters
-        ----------
-        times : ndarray
-            A list of times to evaluate the DMD model.
-
-        Returns
-        -------
-        ndarray
-            The dynamics matrix.
-        """
-        t0 = self.times[0]
-        exp_arg = np.outer(self.omegas, times - t0)
-        return np.exp(exp_arg) * self._b[:, None]
-
-    def fit(self, X: ndarray, times: ndarray = None,
-            default_cutoff: bool = True) -> 'DMDBase':
-        """
-        Abstract method to fit the model to training data.
-
-        This must be inplemented in subclasses.
-        """
-        raise NotImplementedError(
-            f'Subclasses must implement abstact method '
-            f'{self.__class__.__name__}.fit')
-
-    def predict(self, times: ndarray) -> ndarray:
-        """
-        Preduct solution results for given timesteps.
-
-        Parameters
-        ----------
-        times : ndarray
-
-        Returns
-        -------
-        ndarray
-        """
-        return (self.modes @ self.dynamics(times)).T
+        return (self.modes @ self.dynamics).T
 
     def _construct_lowrank_op(self, X: ndarray) -> ndarray:
         """
@@ -322,6 +348,20 @@ class DMDBase:
         self._eigs = self._eigs[idx]
         self._modes = self._modes[:, idx]
 
+    @property
+    def reconstruction_error(self) -> float:
+        """
+        Compute the training data reconstruction error.
+
+        Returns
+        -------
+        float
+            The relative l2 reconstruction error.
+        """
+        X = self.snapshots.real
+        X_pred = self.reconstructed_data.real
+        return norm(X - X_pred, ord=2) / norm(X, ord=2)
+
     def compute_timestep_errors(self) -> ndarray:
         """
         Compute the errors as a function time step.
@@ -395,240 +435,230 @@ class DMDBase:
         plt.tight_layout()
         plt.show()
 
-    def plot_modes(self, grid: ndarray,
-                   mode_index: Union[int, List[int]] = None,
-                   imag: bool = False) -> None:
+    def plot_1D_profiles(
+            self, indices: List[int] = None,
+            x: ndarray = None,
+            components: List[int] = None) -> None:
         """
-        Plot the DMD modes.
+        Plot the DMD mode profiles.
 
         Parameters
         ----------
-        grid : ndarray
-            The x-axis of the mode plot.
-        mode_index : int or list of int, default None
-            The mode index, or indices, to plot.
-        imag : bool, default False
+        indices : list of int, default None
+            The mode indices to plot
+        x : ndarray, default None
+            The spatial grid the mode is defined on.
+        components : list of int, default None
+            The component of the mode to plot.
+            The number of components in a mode is defined
+            by the integer division of the mode and the
+            supplied grid. By default, all components are
+            plotted.
         """
-        # Input checks
-        if self._modes is None:
-            raise AssertionError('No modes found. The `fit` function '
-                                 'must be used first.')
-        if grid is None:
-            raise AssertionError('A grid must be supplied.')
+        # Initialization check
+        if self.modes is None:
+            raise AssertionError(
+                f'DMD model is not initialized. To initialize a '
+                f'model, run the {self.__class__.__name__}.fit method.'
+            )
+        if x is None:
+            x = np.arange(0, self.n_features, 1)
 
-        # Ensure mode index is iterable
-        if mode_index is None:
-            mode_index = list(range(self.n_modes))
-        elif isinstance(mode_index, int):
-            mode_index = [mode_index]
-
-        # Number of components
-        n_components = self.n_features // len(grid)
+        # Check grid
+        n_components = self.n_features // len(x)
         if not isinstance(n_components, int):
-            raise AssertionError('Modes incompatible with the '
-                                 'supplied grid.')
+            raise AssertionError('Incompatible grid encountered.')
 
-        # Plot the modes
-        for idx in mode_index:
-            # Get the mode
-            mode = self._modes[:, idx]
-            argmax = np.argmax(np.abs(mode))
-            if mode[argmax] < 0.0:
-                mode *= -1.0
+        # Define indices iterable
+        if indices is None:
+            indices = list(range(self.n_modes))
+        elif isinstance(indices, int):
+            indices = [indices]
+        if any([not 0 <= ind < self.n_modes for ind in indices]):
+            raise AssertionError('Invalid mode index encountered.')
 
-            # Setup plot
-            plot_obj = plt.subplots(ncols=2 if imag else 1)
-            fig: Figure = plot_obj[0]
-            if imag:
-                ax: List[Axes] = plot_obj[1]
-            else:
-                ax: List[Axes] = [plot_obj[1]]
+        # Define components iterable
+        if components is None:
+            components = list(range(n_components))
+        elif isinstance(components, int):
+            components = [components]
+        if any([c >= n_components for c in components]):
+            raise AssertionError('Invalid component encountered.')
 
-            # Labels
-            fig.suptitle(f'DMD Mode {idx}\n'
-                         f'$\omega$ = {self.omegas[idx].real:.2e}'
-                         f'{self.omegas[idx].imag:+.2e}j')
-            ax[0].set_xlabel('Grid')
-            ax[0].set_ylabel('Real Part')
-            if imag:
-                ax[1].set_xlabel('Grid')
-                ax[1].set_ylabel('Imaginary Part')
+        # Plot each mode individually
+        for ind in indices:
+            fig: Figure = plt.figure()
+            fig.suptitle(f'DMD Mode {ind}\n$\omega$ = '
+                         f'{self.omegas[ind].real:.2e}'
+                         f'{self.omegas[ind].imag:+.2e}')
 
-            # Plot data
+            # Setup real and imaginary Axes
+            real_ax: Axes = fig.add_subplot(1, 2, 1)
+            imag_ax: Axes = fig.add_subplot(1, 2, 2)
+            real_ax.set_title('Real')
+            imag_ax.set_title('Imag')
+
+            # Plot the modes
+            mode = self.modes[:, ind] / norm(self.modes[:, ind])
             for c in range(n_components):
-                vals = mode[c::n_components]
-                ax[0].plot(grid, vals.real, label=f'Component {c}')
-                if imag:
-                    ax[1].plot(grid, vals.imag, label=f'Component {c}')
+                if c in components:
+                    vals = mode[c::n_components]
+                    label = f'Component {c}'
+                    real_ax.plot(x, vals.real, label=label)
+                    imag_ax.plot(x, vals.imag, label=label)
 
-            # Postprocessing
-            ax[0].grid(True)
-            ax[0].legend()
-            if imag:
-                ax[1].grid(True)
-                ax[1].legend()
-        plt.tight_layout()
+            # Finalize plot
+            real_ax.legend()
+            imag_ax.legend()
+            real_ax.grid(True)
+            imag_ax.grid(True)
+            plt.tight_layout()
         plt.show()
 
-    def plot_dynamics(self, mode_index: Union[int, List[int]] = None,
-                      imag: bool = False) -> None:
+    def plot_dynamics(
+            self, indices: List[int] = None,
+            t: ndarray = None) -> None:
         """
         Plot DMD mode dynamics.
 
         Parameters
         ----------
-        mode_index : int or list of int
-            The mode index, or indices, to plot.
-        imag : bool, default False
-            Flag to plot imaginary part.
+        indices : list of int, default None
+            The mode indices to plot
+        t : ndarray, default None
+            The temporal grid the mode is defined on.
         """
-        # Input checks
-        if self._modes is None:
-            raise AssertionError('No modes found. The `fit` function '
-                                 'must be used first.')
+        # Initialization check
+        if self.dynamics is None:
+            raise AssertionError(
+                f'DMD model is not initialized. To initialize a '
+                f'model, run the {self.__class__.__name__}.fit method.'
+            )
+        if t is None:
+            t = self.original_timesteps
 
-        # Ensure mode index is iterable
-        if mode_index is None:
-            mode_index = list(range(self.n_modes))
-        elif isinstance(mode_index, int):
-            mode_index = [mode_index]
+        # Define indices iterable
+        if indices is None:
+            indices = list(range(self.n_modes))
+        elif isinstance(indices, int):
+            indices = [indices]
+        if any([not 0 <= ind < self.n_modes for ind in indices]):
+            raise AssertionError('Invalid mode index encountered.')
 
-        # Compute the dynamics
-        dynamics = self.dynamics(self.times)
+        # Plot each dynamic individually
+        for ind in indices:
+            fig: Figure = plt.figure()
+            fig.suptitle(f'DMD Mode {ind}\n$\omega$ = '
+                         f'{self.omegas[ind].real:.2e}'
+                         f'{self.omegas[ind].imag:+.2e}')
 
-        # Plot the modes
-        for idx in mode_index:
-            # Setup plot
-            plot_obj = plt.subplots(ncols=2 if imag else 1)
-            fig: Figure = plot_obj[0]
-            if imag:
-                ax: List[Axes] = plot_obj[1]
-            else:
-                ax: List[Axes] = [plot_obj[1]]
+            # Setup real and imaginary Axes
+            real_ax: Axes = fig.add_subplot(1, 2, 1)
+            imag_ax: Axes = fig.add_subplot(1, 2, 2)
+            real_ax.set_title('Real')
+            imag_ax.set_title('Imag')
 
-            # Labels
-            fig.suptitle(f'DMD Mode {idx} Dynamics\n'
-                         f'$\omega$ = {self.omegas[idx].real:.2e}'
-                         f'{self.omegas[idx].imag:+.2e}j')
-            ax[0].set_xlabel('Time')
-            ax[0].set_ylabel('Real Part')
-            if imag:
-                ax[1].set_ylabel('Time')
-                ax[1].set_ylabel('Imaginary Part')
+            # Plot the dynamics
+            dynamic = self.dynamics[ind] / norm(self.dynamics[ind])
+            real_ax.plot(t, dynamic.real)
+            imag_ax.plot(t, dynamic.imag)
 
-            # Plot data
-            ax[0].plot(self.times, dynamics[idx].real)
-            if imag:
-                ax[1].plot(grid, dynamics[idx].imag)
-
-            # Postprocessing
-            ax[0].grid(True)
-            if imag:
-                ax[1].grid(True)
-        plt.tight_layout()
+            # Finalize plot
+            real_ax.grid(True)
+            imag_ax.grid(True)
+            plt.tight_layout()
         plt.show()
 
-    def plot_modes_and_dynamics(self, grid: ndarray,
-                                mode_index: Union[int, List[int]] = None,
-                                imag: bool = False,
-                                logscale: bool = False) -> None:
+    def plot_1D_profiles_and_dynamics(
+            self, indices: List[int] = None,
+            x: ndarray = None, t: ndarray = None,
+            components: List[int] = None) -> None:
         """
         Plot the DMD mode and dynamics.
 
         Parameters
         ----------
-        grid : ndarray
-            The x-axis of the mode plot.
-        mode_index : int or list of int, default None
-            The mode index, or indices, to plot.
-        imag : bool, default False
-            Flag to plot imaginary part.
-        logscale : bool, default False
-            Flag to plot dynamics on a log-scale.
-
+        indices : list of int, default None
+            The mode indices to plot.
+        x : ndarray, default None
+            The spatial grid the mode is defined on.
+        components : list of int, default None
+            The component of the mode to plot.
+            The number of components in a mode is defined
+            by the integer division of the mode and the
+            supplied grid. By default, all components are
+            plotted.
         """
-        # Input checks
-        if self._modes is None:
-            raise AssertionError('No modes found. The `fit` function '
-                                 'must be used first.')
-        if grid is None:
-            raise AssertionError('A grid must be supplied.')
+        # Initialization check
+        if self.modes is None:
+            raise AssertionError(
+                f'DMD model is not initialized. To initialize a '
+                f'model, run the {self.__class__.__name__}.fit method.'
+            )
+        if x is None:
+            x = np.arange(0, self.n_features, 1)
+        if t is None:
+            t = np.arange(0, self.n_snapshots, 1)
 
-        # Ensure mode index is iterable
-        if mode_index is None:
-            mode_index = list(range(self.n_modes))
-        elif isinstance(mode_index, int):
-            mode_index = [mode_index]
-
-        # Number of components
-        n_components = self.n_features // len(grid)
+        # Check grid
+        n_components = self.n_features // len(x)
         if not isinstance(n_components, int):
-            raise AssertionError('Modes incompatible with the '
-                                 'supplied grid.')
+            raise AssertionError('Incompatible grid encountered.')
 
-        # Compute the dynamics
-        dynamics = self.dynamics(self.times)
+        # Define indices iterable
+        if indices is None:
+            indices = list(range(self.n_modes))
+        elif isinstance(indices, int):
+            indices = [indices]
+        if any([not 0 <= ind < self.n_modes for ind in indices]):
+            raise AssertionError('Invalid mode index encountered.')
 
-        # Plot the modes
-        for idx in mode_index:
-            # Get the mode
-            mode = self._modes[:, idx]
-            argmax = np.argmax(np.abs(mode))
-            if mode[argmax] < 0.0:
-                mode *= -1.0
+        # Define components iterable
+        if components is None:
+            components = list(range(n_components))
+        elif isinstance(components, int):
+            components = [components]
+        if any([c >= n_components for c in components]):
+            raise AssertionError('Invalid component encountered.')
 
-            # Setup plot
-            n_rows = 2 if imag else 1
-            plot_obj = plt.subplots(n_rows, 2)
-            fig: Figure = plot_obj[0]
-            if imag:
-                ax: List[List[Axes]] = plot_obj[1]
-            else:
-                ax: List[List[Axes]] = [plot_obj[1]]
+        # Plot each mode individually
+        for ind in indices:
+            fig: Figure = plt.figure()
+            fig.suptitle(f'DMD Mode {ind}\n$\omega$ = '
+                         f'{self.omegas[ind].real:.2e}'
+                         f'{self.omegas[ind].imag:+.2e}')
 
-            # Labels
-            fig.suptitle(f'DMD Mode {idx}\n'
-                         f'$\omega$ = {self.omegas[idx].real:.2e}'
-                         f'{self.omegas[idx].imag:+.2e}j')
-            ax[0][0].set_title('Profile')
-            ax[0][1].set_title('Dynamics')
-            ax[0][0].set_xlabel('Grid')
-            ax[0][1].set_xlabel('Time')
-            ax[0][0].set_ylabel('Real Part')
-            ax[0][1].set_ylabel('Real Part')
-            if imag:
-                ax[1][0].set_title('Profile')
-                ax[1][1].set_title('Dynamics')
-                ax[1][0].set_xlabel('Grid')
-                ax[1][1].set_xlabel('Time')
-                ax[1][0].set_ylabel('Imaginary Part')
-                ax[1][1].set_ylabel('Imaginary Part')
+            # Setup real and imaginary Axes
+            real_mode: Axes = fig.add_subplot(2, 2, 1)
+            imag_mode: Axes = fig.add_subplot(2, 2, 3)
+            real_dyn: Axes = fig.add_subplot(2, 2, 2)
+            imag_dyn: Axes = fig.add_subplot(2, 2, 4)
+            real_mode.set_title('Profile')
+            real_dyn.set_title('Dynamics')
+            real_mode.set_ylabel('Real')
+            imag_mode.set_ylabel('Imag')
 
-            # Plot modes
+            # Plot mode
+            mode = self.modes[:, ind] / norm(self.modes[:, ind])
             for c in range(n_components):
-                vals = mode[c::n_components]
-                ax[0][0].plot(grid, vals.real, label=f'Component {c}')
-                if imag:
-                    ax[1][0].plot(grid, vals.imag, label=f'Component {c}')
+                if c in components:
+                    vals = mode[c::n_components]
+                    label = f'Component {c}'
+                    real_mode.plot(x, vals.real, label=label)
+                    imag_mode.plot(x, vals.imag, label=label)
+            real_mode.legend()
+            imag_mode.legend()
 
             # Plot dynamics
-            if not logscale:
-                ax[0][1].plot(self.times, dynamics.real[idx])
-                if imag:
-                    ax[1][1].plot(self.times, dynamics.imag[idx])
-            else:
-                ax[0][1].semilogy(self.times, dynamics.real[idx])
-                if imag:
-                    ax[1][1].semilogy(self.times, dynamics.imag[idx])
+            dynamic = self.dynamics[ind] / norm(self.dynamics[ind])
+            real_dyn.plot(t, dynamic.real)
+            imag_dyn.plot(t, dynamic.imag)
 
-            # Postprocessing
-            ax[0][0].grid(True)
-            ax[0][1].grid(True)
-            ax[0][0].legend()
-            if imag:
-                ax[1][0].grid(True)
-                ax[1][1].grid(True)
-                ax[1][0].legend()
+            # Finalize
+            real_mode.grid(True)
+            real_dyn.grid(True)
+            imag_mode.grid(True)
+            imag_dyn.grid(True)
             plt.tight_layout()
         plt.show()
 
@@ -694,15 +724,13 @@ class DMDBase:
         plt.show()
 
     @staticmethod
-    def _validate_data(X: ndarray, times: ndarray = None) -> Inputs:
+    def _validate_data(X: ndarray) -> ndarray:
         """
 
         Parameters
         ----------
         X : ndarray (n_snapshots, n_features)
             A matrix of snapshots stored row-wise.
-        times : ndarray (n_snapshots,)
-            The timestamps of the snapshots.
 
         Returns
         -------
@@ -711,16 +739,9 @@ class DMDBase:
         # Check types for X and timesteps
         if not isinstance(X, (np.ndarray, list)):
             raise TypeError('X must be a ndarray or list.')
-        if times is not None:
-            if not isinstance(times, (np.ndarray, list)):
-                raise TypeError('times must be a ndarray or list.')
 
         # Format X
         X = np.asarray(X)
         if X.ndim != 2:
             raise AssertionError('X must be 2D data.')
-
-        # Format times
-        if times is not None:
-            times = np.asarray(times).ravel()
-        return X, times
+        return X
