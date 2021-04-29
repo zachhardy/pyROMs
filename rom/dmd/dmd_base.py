@@ -10,11 +10,11 @@ from typing import Union, Tuple, List
 
 Rank = Union[float, int]
 Eig = Tuple[ndarray, ndarray, ndarray]
-Inputs = Tuple[ndarray, ndarray]
 
 
 class DMDBase:
-    """Dynamic Mode Decomposition base class.
+    """
+    Dynamic Mode Decomposition base class.
 
     Parameters
     ----------
@@ -62,20 +62,6 @@ class DMDBase:
         raise NotImplementedError(
             f'Subclasses must implement abstact method '
             f'{self.__class__.__name__}.fit')
-
-    def predict(self, times: ndarray) -> ndarray:
-        """
-        Preduct solution results for given timesteps.
-
-        Parameters
-        ----------
-        times : ndarray
-
-        Returns
-        -------
-        ndarray
-        """
-        return (self.modes @ self.dynamics(times)).T
 
     @property
     def original_timesteps(self) -> ndarray:

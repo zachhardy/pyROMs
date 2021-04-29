@@ -83,7 +83,7 @@ class DMD(DMDBase):
             print('\n*** DMD model information ***')
 
             n = self.n_modes
-            print(f'Number of Modes:\t\t{self.n_modes}')
+            print(f'Number of Modes:\t\t{n}')
 
             s = self._singular_values
             print(f'Smallest Kept Singular Value:\t{s[n - 1] / sum(s):.3e}')
@@ -94,5 +94,5 @@ class DMD(DMDBase):
             print(f'Initial Condition Error:\t{ic_error:.3e}')
 
             error = self.reconstruction_error
-            print(f'Reconstruction Error:\t\t{error:.3e}')
+            print(f'Reconstruction Error:\t\t{error:.3e}\n')
         return self
