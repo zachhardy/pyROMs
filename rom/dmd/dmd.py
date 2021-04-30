@@ -26,7 +26,8 @@ class DMD(DMDBase):
         The sorting method applied to the dynamic modes.
     """
 
-    def fit(self, X: ndarray, verbose: bool = True) -> 'DMD':
+    def fit(self, X: ndarray, original_time: dict = None,
+            verbose: bool = True) -> 'DMD':
         """
         Fit the DMD model to the provided data.
 
@@ -34,6 +35,9 @@ class DMD(DMDBase):
         ----------
         X : ndarray (n_snapshots, n_features)
             A matrix of snapshots stored row-wise.
+        original_time : dict
+            A dictionary containing the initial and final
+            times and the time step size.
         verbose : bool, default True
             Flag for printing model summary.
         """
@@ -72,8 +76,22 @@ class DMD(DMDBase):
 
         # Set original and DMD time
         n = self.n_snapshots
-        self.original_time = {'t0': 0, 'tf': n - 1, 'dt': 1}
-        self.dmd_time = {'t0': 0, 'tf': n - 1, 'dt': 1}
+        if original_time is None:
+            self.original_time = {'t0': 0, 'tf': n - 1, 'dt': 1}
+            self.dmd_time = {'t0': 0, 'tf': n - 1, 'dt': 1}
+        elif isinstance(original_time, dict):
+            # Check the dictionary
+            keys = ['t0', 'tf', 'dt']
+            for key in keys:
+                if key not in list(original_time.keys()):
+                    msg = f'{key} not found in original_time.'
+                    raise KeyError(msg)
+
+            # Set the dictionary
+            self.original_time = original_time
+            self.dmd_time = original_time
+        else:
+            raise TypeError('original_time must be a dict.')
 
         # Set initialized flag
         self.initialized = True

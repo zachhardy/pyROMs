@@ -53,7 +53,8 @@ class DMDBase:
         self._right_svd_modes: ndarray = None
         self._singular_values: ndarray = None
 
-    def fit(self, X: ndarray) -> 'DMDBase':
+    def fit(self, X: ndarray,
+            original_time: dict = None) -> 'DMDBase':
         """
         Abstract method to fit the model to training data.
 
