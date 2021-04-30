@@ -114,3 +114,5 @@ class DMD(DMDBase):
             error = self.reconstruction_error
             print(f'Reconstruction Error:\t\t{error:.3e}\n')
         return self
+
+

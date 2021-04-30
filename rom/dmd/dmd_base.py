@@ -379,19 +379,20 @@ class DMDBase:
         """
         errors = []
         svd_rank_original = self.svd_rank
-        X, times = self.snapshots, self.times
+        X, tinfo = self.snapshots, self.original_time
         for n in range(self.n_snapshots - 1):
-            self.svd_rank = n + 1
-            self.fit(X, times, verbose=False)
-            X_pred = self.reconstructed_data
+            params = self.get_params()
+            params['svd_rank'] = n + 1
+            dmd = self.__class__(**params)
+            dmd.fit(self.snapshots, self.original_time, verbose=False)
+            X_pred = dmd.reconstructed_data
             error = norm(X - X_pred, ord=2) / norm(X, ord=2)
             errors += [error]
-        self.svd_rank = svd_rank_original
-        self.fit(X, times, verbose=False)
         return np.array(errors)
 
     def plot_singular_values(self, logscale: bool = True) -> None:
-        """Plot the singular value spectrum.
+        """
+        Plot the singular value spectrum.
 
         Parameters
         ----------
@@ -710,10 +711,13 @@ class DMDBase:
         plt.tight_layout()
         plt.show()
 
+    def get_params(self) -> dict:
+        return {'svd_rank': self.svd_rank, 'exact': self.exact,
+                'ordering': self.ordering}
+
     @staticmethod
     def _validate_data(X: ndarray) -> ndarray:
         """
-
         Parameters
         ----------
         X : ndarray (n_snapshots, n_features)
