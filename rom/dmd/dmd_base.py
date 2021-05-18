@@ -74,8 +74,10 @@ class DMDBase:
         ndarray (n_snapshots,)
         """
         dt = self.original_time['dt']
-        return np.arange(self.original_time['t0'],
-                         self.original_time['tf'] + dt, dt)
+        timesteps = np.arange(self.original_time['t0'],
+                              self.original_time['tf'] + dt, dt)
+        mask = [t <= self.original_time['tf'] for t in timesteps]
+        return timesteps[mask]
 
     @property
     def dmd_timesteps(self) -> ndarray:
@@ -87,8 +89,10 @@ class DMDBase:
         ndarray
         """
         dt = self.dmd_time['dt']
-        return np.arange(self.dmd_time['t0'],
-                         self.dmd_time['tf'] + dt, dt)
+        timesteps =  np.arange(self.dmd_time['t0'],
+                               self.dmd_time['tf'] + dt, dt)
+        mask = [t <= self.dmd_time['tf'] for t in timesteps]
+        return timesteps[mask]
 
     @property
     def A_tilde(self) -> ndarray:
@@ -262,36 +266,27 @@ class DMDBase:
             The right eigenvectors of the evolution operator.
 
         """
-        tmp = eig(self._A_tilde, left=True)
-        lowrank_eigvals = tmp[0]
-        lowrank_eigvecs_l = tmp[1]
-        lowrank_eigvecs_r = tmp[2]
+        w, vl, vr = eig(self._A_tilde, left=True)
 
         # Filter out zero eigenvalues
-        non_zero_mask = lowrank_eigvals != 0.0
-        lowrank_eigvals = lowrank_eigvals[non_zero_mask]
-        lowrank_eigvecs_l = lowrank_eigvecs_l.T[non_zero_mask].T
-        lowrank_eigvecs_r = lowrank_eigvecs_r.T[non_zero_mask].T
+        non_zero_mask = w != 0.0
+        w = w[non_zero_mask]
+        vl = vl.T[non_zero_mask].T
+        vr = vr.T[non_zero_mask].T
 
         # Compute the full-rank eigenvectors
         if self.exact:
             Vr = self._right_svd_modes[:, :self.n_modes]
             inv_Sr = np.reciprocal(self._singular_values[:self.n_modes])
-            inv_eigs = np.reciprocal(lowrank_eigvals)
-            eigvecs_l = (X @ Vr * inv_Sr) @ lowrank_eigvecs_l * inv_eigs
-            eigvecs_r = (X @ Vr * inv_Sr) @ lowrank_eigvecs_r * inv_eigs
+            eigvecs_l = (X @ Vr * inv_Sr) @ vl * np.reciprocal(w)
+            eigvecs_r = (X @ Vr * inv_Sr) @ vr * np.reciprocal(w)
         else:
             Ur = self._left_svd_modes[:, :self.n_modes]
-            eigvecs_l = Ur @ lowrank_eigvecs_l
-            eigvecs_r = Ur @ lowrank_eigvecs_r
-
-        # Normalize eigenvectors and ensure positive max abs
-        for m in range(self.n_modes):
-            eigvecs_l[:, m] /= norm(eigvecs_l[:, m])
-            eigvecs_r[:, m] /= norm(eigvecs_r[:, m])
+            eigvecs_l = Ur @ vl
+            eigvecs_r = Ur @ vr
 
         # Full-rank eigenvalues are the low-rank eigenvalues
-        eigvals = lowrank_eigvals
+        eigvals = w
 
         return eigvals, eigvecs_l, eigvecs_r
 
@@ -345,9 +340,9 @@ class DMDBase:
         float
             The relative l2 reconstruction error.
         """
-        X = self.snapshots.real
-        X_pred = self.reconstructed_data.real
-        return norm(X - X_pred, ord=2) / norm(X, ord=2)
+        X = self.snapshots
+        X_pred = self.reconstructed_data
+        return norm(X - X_pred)
 
     def compute_timestep_errors(self) -> ndarray:
         """
@@ -357,11 +352,11 @@ class DMDBase:
         -------
         ndarray (n_samples,)
         """
-        X = self.snapshots.real
-        X_pred = self.reconstructed_data.real
+        X = self.snapshots
+        X_pred = self.reconstructed_data
         errors = np.zeros(self.n_snapshots)
         for t in range(self.n_snapshots):
-            error = norm(X_pred[t] - X[t], ord=2) / norm(X[t], ord=2)
+            error = norm(X_pred[t] - X[t])
             errors[t] = error
         return errors
 
@@ -380,13 +375,13 @@ class DMDBase:
         errors = []
         svd_rank_original = self.svd_rank
         X, tinfo = self.snapshots, self.original_time
-        for n in range(self.n_snapshots - 1):
+        for n in range(min(X.shape) - 1):
             params = self.get_params()
             params['svd_rank'] = n + 1
             dmd = self.__class__(**params)
             dmd.fit(self.snapshots, self.original_time, verbose=False)
             X_pred = dmd.reconstructed_data
-            error = norm(X - X_pred, ord=2) / norm(X, ord=2)
+            error = norm(X - X_pred)
             errors += [error]
         return np.array(errors)
 
@@ -598,6 +593,9 @@ class DMDBase:
             indices = list(range(self.n_modes))
         elif isinstance(indices, int):
             indices = [indices]
+
+        # Filter out bad indices
+        indices = [i for i in indices if 0 <= i < self.n_modes]
         if any([not 0 <= ind < self.n_modes for ind in indices]):
             raise AssertionError('Invalid mode index encountered.')
 
@@ -650,7 +648,8 @@ class DMDBase:
             plt.tight_layout()
         plt.show()
 
-    def plot_reconstruction_errors(self, logscale: bool = True) -> None:
+    def plot_reconstruction_errors(self, logscale: bool = True,
+                                   fname: str = None) -> None:
         """
         Plot the reconstruction errors.
 
@@ -658,6 +657,8 @@ class DMDBase:
         ----------
         logscale : bool
             Flag for plotting on a linear or log scale y-axis.
+        fname : str, default None
+            Filename for saving the plot.
         """
         errors = self.compute_error_decay()
         s = self._singular_values
@@ -680,6 +681,10 @@ class DMDBase:
         ax.grid(True)
         ax.legend()
         plt.tight_layout()
+        if fname is not None:
+            if '.' in fname:
+                fname = fname.split('.')[0]
+            plt.savefig(fname + '.pdf')
         plt.show()
 
     def plot_timestep_errors(self, logscale: bool = True) -> None:
@@ -690,7 +695,7 @@ class DMDBase:
         ----------
         logscale : bool
         """
-        times = self.times
+        times = self.original_timesteps
         errors = self.compute_timestep_errors()
 
         # Setup plot

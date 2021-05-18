@@ -64,9 +64,7 @@ class DMD(DMDBase):
         self._A_tilde = self._construct_lowrank_op(X1)
 
         # Eigendecomposition of Atilde
-        tmp = self._eig_from_lowrank_op(X1)
-        self._eigs = tmp[0]
-        self._modes = tmp[2]
+        self._eigs, _, self._modes = self._eig_from_lowrank_op(X1)
 
         # Compute amplitudes
         self._b = self._compute_amplitudes()
@@ -108,7 +106,7 @@ class DMD(DMDBase):
 
             ic = self.snapshots[0]
             fit = (self.modes @ self.amplitudes).ravel()
-            ic_error = norm(ic - fit, ord=2) / norm(ic, ord=2)
+            ic_error = norm(ic - fit)
             print(f'Initial Condition Error:\t{ic_error:.3e}')
 
             error = self.reconstruction_error

@@ -42,9 +42,9 @@ def compute_svd(X: ndarray, svd_rank: Rank = -1) -> SVD:
         cumulative_energy = np.cumsum(s / sum(s))
         rank = np.searchsorted(cumulative_energy, svd_rank) + 1
     elif isinstance(svd_rank, int) and svd_rank >= 1:
-        rank = min(svd_rank, X.shape[1])
+        rank = min(svd_rank, min(X.shape))
     else:
-        rank = X.shape[1]
+        rank = min(X.shape)
 
     return U, s, V, rank
 
