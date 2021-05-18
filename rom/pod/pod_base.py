@@ -112,7 +112,7 @@ class PODBase:
         """
         X = self.snapshots
         X_pred = self.reconstructed_data
-        return norm(X - X_pred, ord=2) / norm(X, ord=2)
+        return norm(X - X_pred)
 
     def untruncated_reconstruction_error(self) -> float:
         """
@@ -127,7 +127,7 @@ class PODBase:
         """
         X = self.snapshots
         X_pred = X @ self._modes @ self._modes.T
-        return norm(X - X_pred, ord=2) / norm(X, ord=2)
+        return norm(X - X_pred)
 
     def compute_error_decay(self) -> ndarray:
         """Compute the decay in the error.
@@ -144,7 +144,7 @@ class PODBase:
         X = self.snapshots
         for n in range(self.n_snapshots):
             X_pred = X @ self._modes[:, :n] @ self._modes.T[:n]
-            err = norm(X - X_pred, ord=2) / norm(X, ord=2)
+            err = norm(X - X_pred)
             errors.append(err)
         return np.array(errors)
 
