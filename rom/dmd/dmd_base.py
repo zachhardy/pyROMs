@@ -49,14 +49,16 @@ class DMDBase:
         self.n_features: int = 0
         self.n_modes: int = 0
 
-        self.original_time: dict = None
-        self.dmd_time: dict = None
+        self._timesteps: ndarray = None
+        self._dt: float = None
 
         self._snapshots: ndarray = None
+
         self._modes: ndarray = None
         self._eigs: ndarray = None
         self._A_tilde: ndarray = None
         self._b: ndarray = None
+
         self._left_svd_modes: ndarray = None
         self._right_svd_modes: ndarray = None
         self._singular_values: ndarray = None
@@ -75,32 +77,24 @@ class DMDBase:
     @property
     def original_timesteps(self) -> ndarray:
         """
-        Generate the original time steps.
+        Get the original time steps.
 
         Returns
         -------
         ndarray (n_snapshots,)
         """
-        dt = self.original_time['dt']
-        timesteps = np.arange(self.original_time['t0'],
-                              self.original_time['tf'] + dt, dt)
-        mask = [t <= self.original_time['tf'] for t in timesteps]
-        return timesteps[mask]
+        return self._timesteps
 
     @property
-    def dmd_timesteps(self) -> ndarray:
+    def original_dt(self) -> float:
         """
-        Generate the DMD time steps.
+        Get the original timestep size.
 
         Returns
         -------
-        ndarray
+        float
         """
-        dt = self.dmd_time['dt']
-        timesteps =  np.arange(self.dmd_time['t0'],
-                               self.dmd_time['tf'] + dt, dt)
-        mask = [t <= self.dmd_time['tf'] for t in timesteps]
-        return timesteps[mask]
+        return self._dt
 
     @property
     def A_tilde(self) -> ndarray:
@@ -125,22 +119,36 @@ class DMDBase:
         return self._modes
 
     @property
-    def dynamics(self) -> ndarray:
+    def original_dynamics(self) -> ndarray:
+        """
+        Get the dynamics for the provided timesteps
+
+        Returns
+        -------
+        ndarray
+            The original dynamics matrix.
+        """
+        return self.dynamics(self.original_timesteps)
+
+    def dynamics(self, timesteps: ndarray) -> ndarray:
         """
         Get the dynamics for a provided set of time steps.
 
         Parameters
         ----------
-        times : ndarray
-            A list of times to evaluate the DMD model.
+        timesteps : ndarray
+            The timesteps to sample the dynamics at.
 
         Returns
         -------
         ndarray
             The dynamics matrix.
         """
-        t0 = self.original_time['t0']
-        exp_arg = np.outer(self.omegas, self.dmd_timesteps - t0)
+        if timesteps is None:
+            raise AssertionError('timesteps must be provided.')
+
+        t0 = self.original_timesteps[0]
+        exp_arg = np.outer(self.omegas, timesteps - t0)
         return np.exp(exp_arg) * self._b[:, None]
 
     @property
@@ -174,8 +182,7 @@ class DMDBase:
         -------
         ndarray (n_modes,)
         """
-        dt = self.original_time['dt']
-        return np.log(self.eigs, dtype=complex) / dt
+        return np.log(self.eigs, dtype=complex) / self.original_dt
 
     @property
     def growth_rate(self) -> ndarray:
@@ -234,7 +241,7 @@ class DMDBase:
         -------
         ndarray (n_snapshots, n_features)
         """
-        return (self.modes @ self.dynamics).T
+        return (self.modes @ self.original_dynamics).T
 
     def _construct_lowrank_op(self, X: ndarray) -> ndarray:
         """

@@ -26,7 +26,7 @@ class DMD(DMDBase):
         The sorting method applied to the dynamic modes.
     """
 
-    def fit(self, X: ndarray, original_time: dict = None,
+    def fit(self, X: ndarray, timesteps: ndarray = None,
             verbose: bool = True) -> 'DMD':
         """
         Fit the DMD model to the provided data.
@@ -35,14 +35,16 @@ class DMD(DMDBase):
         ----------
         X : ndarray (n_snapshots, n_features)
             A matrix of snapshots stored row-wise.
-        original_time : dict
-            A dictionary containing the initial and final
-            times and the time step size.
+        timesteps : ndarray (n_snapshots,), default None
+            If specified, the timesteps corresponding to the
+            snapshots provided.
         verbose : bool, default True
             Flag for printing model summary.
         """
         # Validate inputs
         X = self._validate_data(X)
+        if timesteps is not None and len(timesteps) != len(X):
+            raise AssertionError('Incompatible timesteps.')
 
         # Save the input data
         self._snapshots = np.copy(X)
@@ -72,27 +74,12 @@ class DMD(DMDBase):
         # Sort the modes
         self._sort_modes()
 
-        # Set original and DMD time
+        # Set default timesteps
         n = self.n_snapshots
-        if original_time is None:
-            self.original_time = {'t0': 0, 'tf': n - 1, 'dt': 1}
-            self.dmd_time = {'t0': 0, 'tf': n - 1, 'dt': 1}
-        elif isinstance(original_time, dict):
-            # Check the dictionary
-            keys = ['t0', 'tf', 'dt']
-            for key in keys:
-                if key not in list(original_time.keys()):
-                    msg = f'{key} not found in original_time.'
-                    raise KeyError(msg)
-
-            # Set the dictionary
-            self.original_time = original_time
-            self.dmd_time = original_time
-        else:
-            raise TypeError('original_time must be a dict.')
-
-        # Set initialized flag
-        self.initialized = True
+        if timesteps is None:
+            timesteps = np.arange(0, n, 1)
+        self._timesteps = np.copy(timesteps)
+        self._dt = np.diff(timesteps)[0]
 
         # Print summary
         if verbose:
