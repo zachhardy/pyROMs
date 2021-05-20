@@ -244,16 +244,14 @@ def plot_1D_profiles_and_dynamics(
         indices = [indices]
 
     # Filter out bad indices
-    indices = [i for i in indices if 0 <= i < self.n_modes]
-    if any([not 0 <= ind < self.n_modes for ind in indices]):
-        raise AssertionError('Invalid mode index encountered.')
+    indices = [i for i in indices if -self.n_modes <= i < self.n_modes]
 
     # Define components iterable
     if components is None:
         components = list(range(n_components))
     elif isinstance(components, int):
         components = [components]
-    if any([c >= n_components for c in components]):
+    if any([not -n_components <= c < n_components for c in components]):
         raise AssertionError('Invalid component encountered.')
 
     # Loop over indices

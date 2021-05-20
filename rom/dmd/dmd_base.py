@@ -39,7 +39,7 @@ class DMDBase:
                             plot_error_decay)
 
     def __init__(self, svd_rank: Rank = -1, exact: bool = False,
-                 ordering: str = 'eigenvalues') -> None:
+                 ordering: str = 'amplitudes') -> None:
         self.svd_rank: Rank = svd_rank
         self.exact: bool = exact
         self.ordering: str = ordering
