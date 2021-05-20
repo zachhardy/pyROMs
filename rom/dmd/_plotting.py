@@ -11,24 +11,30 @@ if TYPE_CHECKING:
     from .dmd_base import DMDBase
 
 def plot_singular_values(
-        self: 'DMDBase', logscale: bool = True,
+        self: 'DMDBase', normalized: bool = True,
+        logscale: bool = True,
         filename: str = None) -> None:
     """
 
     Parameters
     ----------
+    normalized : bool, default True
+        If True, the singular values are normalized by
+        the sum of all singular values.
     logscale : bool, default False
         If True, the plot will have a logarithmic y-axis.
     filename : str, default None
         If specified, the location to save the plot.
     """
-    s = self._singular_values / sum(self._singular_values)
+    spectrum = self.singular_values
+    if normalized:
+        spectrum /= sum(spectrum)
 
     plt.figure()
     plt.xlabel('Singular Value #')
     plt.ylabel(r'$\sigma / \sum{{\sigma}}$')
     plotter = plt.semilogy if logscale else plt.plot
-    plotter(s, 'b-*', label='Singular Values')
+    plotter(spectrum, 'b-*', label='Singular Values')
     plt.axvline(self.n_modes - 1, color='r',
                 ymin=1e-12, ymax=1.0 - 1.0e-12)
     plt.legend()
@@ -419,13 +425,17 @@ def plot_timestep_errors(
         plt.show()
 
 def plot_error_decay(
-        self: 'DMDBase', logscale: bool = True,
+        self: 'DMDBase', normalized: bool = True,
+        logscale: bool = True,
         filename: str = None) -> None:
     """
     Plot the reconstruction errors.
 
     Parameters
     ----------
+    normalized : bool, default True
+        If True, the singular values are normalized by
+        the sum of all singular values.
     logscale : bool
         Flag for plotting on a linear or log scale y-axis.
     filename : str, default None
@@ -433,7 +443,9 @@ def plot_error_decay(
     """
     from .dmd_base import compute_error_decay
     errors = compute_error_decay(self)
-    spectrum = self._singular_values / sum(self._singular_values)
+    spectrum = self.singular_values
+    if normalized:
+        spectrum /= sum(spectrum)
 
     plt.figure()
     plt.xlabel('# of Modes')
