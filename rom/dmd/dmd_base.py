@@ -222,6 +222,17 @@ class DMDBase:
         return self.modes @ np.diag(self.eigs) @ pinv_modes
 
     @property
+    def singular_values(self) -> ndarray:
+        """
+        Get the singular values.
+
+        Returns
+        -------
+        ndarray (n_modes,)
+        """
+        return self._singular_values
+
+    @property
     def snapshots(self) -> ndarray:
         """
         Get the original training data.
@@ -444,7 +455,7 @@ def compute_error_decay(obj: DMDBase) -> ndarray:
         The reproduction error as a function of n_modes.
     """
     errors = []
-    X, tinfo = obj.snapshots, obj.original_time
+    X, tinfo = obj.snapshots, obj.original_timesteps
     for n in range(min(X.shape) - 1):
         params = obj.get_params()
         params['svd_rank'] = n + 1
