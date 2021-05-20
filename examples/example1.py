@@ -44,7 +44,7 @@ for n, title, d in zip(range(131, 134), titles, data):
 plt.show()
 
 # =================================== Fit a DMD model
-dmd = DMD(svd_rank=2).fit(X, t)
+dmd = DMD(svd_rank=2).fit(X)
 dmd.plot_singular_values(logscale=False)
 dmd.plot_error_decay(normalized=False)
 X_dmd = dmd.reconstructed_data.real
