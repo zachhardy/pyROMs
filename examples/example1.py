@@ -33,7 +33,7 @@ X2 = f2(xgrid, tgrid)
 X = X1 + X2
 
 # =================================== Plot the data
-fig = plt.figure(figsize=(15, 6))
+fig = plt.figure(figsize=(12, 4))
 titles = [r'$f_1(x, t)$', r'$f_2(x, t)$', r'$f~(x, t)$']
 data = [X1, X2, X]
 for n, title, d in zip(range(131, 134), titles, data):
@@ -41,6 +41,7 @@ for n, title, d in zip(range(131, 134), titles, data):
     plt.title(title)
     plt.pcolormesh(xgrid, tgrid, d.real, cmap='jet')
     plt.colorbar()
+plt.tight_layout()
 plt.show()
 
 # =================================== Fit a DMD model
@@ -50,7 +51,7 @@ dmd.plot_error_decay(normalized=False)
 X_dmd = dmd.reconstructed_data.real
 
 # =================================== Plot DMD results
-fig = plt.figure(figsize=(15, 6))
+fig = plt.figure(figsize=(12, 4))
 titles = [r'$X$', r'$X_{{DMD}}$', '$| X - X_{{DMD}} |$']
 data = [X, X_dmd, abs((X - X_dmd).real)]
 for n, title, d in zip(range(131, 134), titles, data):
