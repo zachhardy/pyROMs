@@ -449,7 +449,7 @@ def plot_error_decay(
 
     plt.figure()
     plt.xlabel('# of Modes')
-    plt.ylabel(r'Relative $\ell^2$ Error')
+    plt.ylabel(r'$\ell^2$ Error')
     plotter = plt.semilogy if logscale else plt.plot
     plotter(spectrum, 'b-*', label='Singular Values')
     plotter(errors, 'r-*', label='Reconstruction Errors')
