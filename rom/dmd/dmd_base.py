@@ -45,16 +45,14 @@ class DMDBase:
         self.ordering: str = ordering
         self.initialized: bool = False
 
-        self.n_snapshots: int = 0
-        self.n_features: int = 0
-        self.n_modes: int = 0
-
-        self._timesteps: ndarray = None
-        self._dt: float = None
+        self.original_time: dict = None
+        self.dmd_time: dict = None
 
         self._snapshots: ndarray = None
+        self._snapshots_shape: tuple = None
 
         self._modes: ndarray = None
+        self._n_modes: int = None
         self._eigs: ndarray = None
         self._A_tilde: ndarray = None
         self._b: ndarray = None
@@ -75,6 +73,28 @@ class DMDBase:
             f'{self.__class__.__name__}.fit')
 
     @property
+    def snapshots(self) -> ndarray:
+        """
+        Get the original training data.
+
+        Returns
+        -------
+        ndarray (n_snapshots, n_features)
+        """
+        return self._snapshots
+
+    @property
+    def reconstructed_data(self) -> ndarray:
+        """
+        Get the reconstructed training data.
+
+        Returns
+        -------
+        ndarray (n_snapshots, n_features)
+        """
+        return (self.modes @ self.dynamics).T
+
+    @property
     def original_timesteps(self) -> ndarray:
         """
         Get the original time steps.
@@ -83,29 +103,25 @@ class DMDBase:
         -------
         ndarray (n_snapshots,)
         """
-        return self._timesteps
+        times = np.arange(
+            self.original_time['t0'],
+            self.original_time['tf'] + self.original_time['dt'],
+            self.original_time['dt'])
+        return times[[t <= self.original_time['tf'] for t in times]]
 
     @property
-    def original_dt(self) -> float:
+    def dmd_timesteps(self) -> ndarray:
         """
-        Get the original timestep size.
+        Get the timesteps to sample.
 
         Returns
         -------
-        float
+        ndarray
         """
-        return self._dt
-
-    @property
-    def A_tilde(self) -> ndarray:
-        """
-        Get the reduced order evolution operator.
-
-        Returns
-        -------
-        ndarray (n_modes, n_modes)
-        """
-        return self._Atilde
+        times = np.arange(self.dmd_time['t0'],
+                          self.dmd_time['tf'] + self.dmd_time['dt'],
+                          self.dmd_time['dt'])
+        return times[[t <= self.dmd_time['tf'] for t in times]]
 
     @property
     def modes(self) -> ndarray:
@@ -119,37 +135,29 @@ class DMDBase:
         return self._modes
 
     @property
-    def original_dynamics(self) -> ndarray:
+    def dynamics(self) -> ndarray:
         """
-        Get the dynamics for the provided timesteps
+        Get the dynamics for the dmd timesteps.
 
         Returns
         -------
-        ndarray
-            The original dynamics matrix.
-        """
-        return self.dynamics(self.original_timesteps)
-
-    def dynamics(self, timesteps: ndarray) -> ndarray:
-        """
-        Get the dynamics for a provided set of time steps.
-
-        Parameters
-        ----------
-        timesteps : ndarray
-            The timesteps to sample the dynamics at.
-
-        Returns
-        -------
-        ndarray
+        ndarray (n_modes, n_snapshots)
             The dynamics matrix.
         """
-        if timesteps is None:
-            raise AssertionError('timesteps must be provided.')
-
-        t0 = self.original_timesteps[0]
-        exp_arg = np.outer(self.omegas, timesteps - t0)
+        t0 = self.original_time['t0']
+        exp_arg = np.outer(self.omegas, self.dmd_timesteps - t0)
         return np.exp(exp_arg) * self._b[:, None]
+
+    @property
+    def A_tilde(self) -> ndarray:
+        """
+        Get the reduced order evolution operator.
+
+        Returns
+        -------
+        ndarray (n_modes, n_modes)
+        """
+        return self._Atilde
 
     @property
     def amplitudes(self) -> ndarray:
@@ -182,7 +190,7 @@ class DMDBase:
         -------
         ndarray (n_modes,)
         """
-        return np.log(self.eigs, dtype=complex) / self.original_dt
+        return np.log(self.eigs, dtype=complex) / self.original_time['dt']
 
     @property
     def growth_rate(self) -> ndarray:
@@ -233,28 +241,39 @@ class DMDBase:
         return self._singular_values
 
     @property
-    def snapshots(self) -> ndarray:
+    def n_modes(self) -> int:
         """
-        Get the original training data.
+        Get the number of modes.
 
         Returns
         -------
-        ndarray (n_snapshots, n_features)
+        int
         """
-        return self._snapshots
+        return self._n_modes
 
     @property
-    def reconstructed_data(self) -> ndarray:
+    def n_snapshots(self) -> int:
         """
-        Get the reconstructed training data.
+        Get the number of snapshots.
 
         Returns
         -------
-        ndarray (n_snapshots, n_features)
+        int
         """
-        return (self.modes @ self.original_dynamics).T
+        return self.snapshots.shape[0]
 
-    def _construct_lowrank_op(self, X: ndarray) -> ndarray:
+    @property
+    def n_features(self) -> int:
+        """
+        Get the number of features in a snapshot.
+
+        Returns
+        -------
+        int
+        """
+        return self.snapshots.shape[1]
+
+    def construct_lowrank_op(self, X: ndarray) -> ndarray:
         """
         Construct the low-rank operator from the SVD of X
         and the matrix Y.
@@ -274,7 +293,7 @@ class DMDBase:
         Sr = self._singular_values[:self.n_modes]
         return Ur.conj().T @ X @ Vr * np.reciprocal(Sr)
 
-    def _eig_from_lowrank_op(self, X: ndarray) -> Eig:
+    def eig_from_lowrank_op(self, X: ndarray) -> Eig:
         """
 
         Parameters
@@ -316,7 +335,7 @@ class DMDBase:
 
         return eigvals, eigvecs_l, eigvecs_r
 
-    def _compute_amplitudes(self) -> ndarray:
+    def compute_amplitudes(self) -> ndarray:
         """
         Compute the amplitudes for the dynamic modes. This
         method fits the modes to the first snapshot, which
@@ -335,7 +354,7 @@ class DMDBase:
                 self._modes[:, m] *= -1.0
         return b
 
-    def _sort_modes(self) -> None:
+    def sort_modes(self) -> None:
         """
         Sort the dynamic modes based upon the specified criteria.
         This method updates the ordering of the private attributes.
@@ -416,7 +435,7 @@ class DMDBase:
                 'ordering': self.ordering}
 
     @staticmethod
-    def _validate_data(X: ndarray) -> ndarray:
+    def validate_data(X: ndarray) -> Tuple[ndarray, tuple]:
         """
         Parameters
         ----------
@@ -427,15 +446,18 @@ class DMDBase:
         -------
         The inputs
         """
-        # Check types for X and timesteps
-        if not isinstance(X, (np.ndarray, list)):
-            raise TypeError('X must be a ndarray or list.')
-
-        # Format X
-        X = np.asarray(X)
-        if X.ndim != 2:
-            raise AssertionError('X must be 2D data.')
-        return X
+        # Check for ndarrays
+        if isinstance(X, ndarray) and X.ndim == 2:
+            snapshots = X
+            snapshots_shape = None
+        else:
+            input_shapes = [np.asarray(x).shape for x in X]
+            if len(set(input_shapes)) != 1:
+                msg = 'All snapshots do not have the same dimension.'
+                raise ValueError(msg)
+            snapshots = np.transpose([np.asarray(x).ravel() for x in X])
+            snapshots_shape = input_shapes[0]
+        return snapshots, snapshots_shape
 
 
 def compute_error_decay(obj: DMDBase) -> ndarray:
@@ -455,12 +477,12 @@ def compute_error_decay(obj: DMDBase) -> ndarray:
         The reproduction error as a function of n_modes.
     """
     errors = []
-    X, tinfo = obj.snapshots, obj.original_timesteps
+    X = obj.snapshots
     for n in range(min(X.shape) - 1):
         params = obj.get_params()
         params['svd_rank'] = n + 1
         dmd = obj.__class__(**params)
-        dmd.fit(X, tinfo, verbose=False)
+        dmd.fit(X, verbose=False)
         X_pred = dmd.reconstructed_data
         error = norm(X - X_pred)
         errors += [error]
