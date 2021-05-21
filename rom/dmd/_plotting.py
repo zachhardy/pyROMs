@@ -48,7 +48,7 @@ def plot_singular_values(
         plt.show()
 
 
-def plot_1D_profiles(
+def plot_1D_modes(
         self: 'DMDBase', indices: List[int] = None,
         x: ndarray = None,
         components: List[int] = None,
@@ -196,7 +196,7 @@ def plot_dynamics(
             plt.show()
 
 
-def plot_1D_profiles_and_dynamics(
+def plot_1D_modes_and_dynamics(
         self: 'DMDBase', indices: List[int] = None,
         x: ndarray = None, t: ndarray = None,
         components: List[int] = None,
@@ -299,7 +299,7 @@ def plot_1D_profiles_and_dynamics(
         else:
             plt.show()
 
-def plot_mode_evolutions(
+def plot_1D_mode_evolutions(
         self, indices: List[int] = None,
         x: ndarray = None, t: ndarray = None,
         components: List[int] = None,
@@ -389,6 +389,58 @@ def plot_mode_evolutions(
             plt.savefig(basename + f'_{ind}.pdf')
         else:
             plt.show()
+
+
+def plot_eigs(
+        self: 'DMDBase',
+        show_unit_circle: bool = True,
+        filename: str = None) -> None:
+    """
+    Plot the eigenvalues.
+
+    Parameters
+    ----------
+    show_unit_circle : bool, default True
+        If True, the unit circle is plotted for reference.
+    filename : str, default None
+        If specified, the location to save the plot.
+    """
+    if self.eigs is None:
+        raise AssertionError(
+            f'DMD model is not initialized. To initialize a '
+            f'model, run the {self.__class__.__name__}.fit method.'
+        )
+
+    fig: Figure = plt.figure(figsize=(6, 6))
+    ax: Axes = plt.gca()
+    ax.set_xlabel('Real Part')
+    ax.set_ylabel('Imaginary Part')
+
+    points, = ax.plot(self.eigs.real, self.eigs.imag,
+                      'bo', label='Eigenvalues')
+
+    if show_unit_circle:
+        unit_circle = plt.Circle(
+            (0.0, 0.0), 1.0, fill=False, color='green',
+            label='Unit Circle', linestyle='--')
+        ax.add_artist(unit_circle)
+        ax.add_artist(
+            plt.legend([points, unit_circle],
+                       ['Eigenvalues', 'Unit Circle'],
+                       loc='best'))
+
+    limit = 0.6 * np.max(np.ceil(np.absolute(self.eigs)))
+    ax.set_xlim((-limit, limit))
+    ax.set_ylim((-limit, limit))
+    ax.set_aspect('equal')
+    ax.grid(True)
+    plt.tight_layout()
+
+    if filename is not None:
+        basename, ext = splitext(filename)
+        plt.savefig(basename + '.pdf')
+    else:
+        plt.show()
 
 
 def plot_timestep_errors(

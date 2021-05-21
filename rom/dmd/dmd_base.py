@@ -31,10 +31,11 @@ class DMDBase:
     """
 
     from ._plotting import (plot_singular_values,
-                            plot_1D_profiles,
+                            plot_1D_modes,
                             plot_dynamics,
-                            plot_1D_profiles_and_dynamics,
-                            plot_mode_evolutions,
+                            plot_1D_modes_and_dynamics,
+                            plot_1D_mode_evolutions,
+                            plot_eigs,
                             plot_timestep_errors,
                             plot_error_decay)
 
