@@ -106,7 +106,10 @@ def plot_1D_modes(
         fig: Figure = plt.figure()
         fig.suptitle(f'DMD Mode {ind}\n$\omega$ = '
                      f'{self.omegas[ind].real:.2e}'
-                     f'{self.omegas[ind].imag:+.2e}')
+                     f'{self.omegas[ind].imag:+.2e}\n'
+                     f'$b$ = '
+                     f'{self.amplitudes[ind].real:.2e}'
+                     f'{self.amplitudes[ind].imag:+.2e}j')
 
         real_ax: Axes = fig.add_subplot(1, 2, 1)
         imag_ax: Axes = fig.add_subplot(1, 2, 2)
@@ -173,7 +176,10 @@ def plot_dynamics(
         fig: Figure = plt.figure()
         fig.suptitle(f'DMD Mode {ind}\n$\omega$ = '
                      f'{self.omegas[ind].real:.2e}'
-                     f'{self.omegas[ind].imag:+.2e}')
+                     f'{self.omegas[ind].imag:+.2e}\n'
+                     f'$b$ = '
+                     f'{self.amplitudes[ind].real:.2e}'
+                     f'{self.amplitudes[ind].imag:+.2e}j')
 
         real_ax: Axes = fig.add_subplot(1, 2, 1)
         imag_ax: Axes = fig.add_subplot(1, 2, 2)
@@ -259,7 +265,10 @@ def plot_1D_modes_and_dynamics(
         fig: Figure = plt.figure()
         fig.suptitle(f'DMD Mode {ind}\n$\omega$ = '
                      f'{self.omegas[ind].real:.2e}'
-                     f'{self.omegas[ind].imag:+.2e}j')
+                     f'{self.omegas[ind].imag:+.2e}\n'
+                     f'$b$ = '
+                     f'{self.amplitudes[ind].real:.2e}'
+                     f'{self.amplitudes[ind].imag:+.2e}j')
 
         real_axs: List[Axes] = [fig.add_subplot(2, 2, 1),
                                 fig.add_subplot(2, 2, 2)]
@@ -371,7 +380,10 @@ def plot_1D_mode_evolutions(
         fig: Figure = plt.figure()
         fig.suptitle(f'DMD Mode {ind}\n$\omega$ = '
                      f'{self.omegas[ind].real:.2e}'
-                     f'{self.omegas[ind].imag:+.2e}j')
+                     f'{self.omegas[ind].imag:+.2e}\n'
+                     f'$b$ = '
+                     f'{self.amplitudes[ind].real:.2e}'
+                     f'{self.amplitudes[ind].imag:+.2e}j')
 
         # Plot the evolution component-wise
         mode = dmd.modes.T[ind].reshape(-1, 1)
