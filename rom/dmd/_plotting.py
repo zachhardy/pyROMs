@@ -106,7 +106,7 @@ def plot_1D_modes(
         fig: Figure = plt.figure()
         fig.suptitle(f'DMD Mode {ind}\n$\omega$ = '
                      f'{self.omegas[ind].real:.2e}'
-                     f'{self.omegas[ind].imag:+.2e}\n'
+                     f'{self.omegas[ind].imag:+.2e}j\n'
                      f'$b$ = '
                      f'{self.amplitudes[ind].real:.2e}'
                      f'{self.amplitudes[ind].imag:+.2e}j')
@@ -176,7 +176,7 @@ def plot_dynamics(
         fig: Figure = plt.figure()
         fig.suptitle(f'DMD Mode {ind}\n$\omega$ = '
                      f'{self.omegas[ind].real:.2e}'
-                     f'{self.omegas[ind].imag:+.2e}\n'
+                     f'{self.omegas[ind].imag:+.2e}j\n'
                      f'$b$ = '
                      f'{self.amplitudes[ind].real:.2e}'
                      f'{self.amplitudes[ind].imag:+.2e}j')
@@ -265,7 +265,7 @@ def plot_1D_modes_and_dynamics(
         fig: Figure = plt.figure()
         fig.suptitle(f'DMD Mode {ind}\n$\omega$ = '
                      f'{self.omegas[ind].real:.2e}'
-                     f'{self.omegas[ind].imag:+.2e}\n'
+                     f'{self.omegas[ind].imag:+.2e}j\n'
                      f'$b$ = '
                      f'{self.amplitudes[ind].real:.2e}'
                      f'{self.amplitudes[ind].imag:+.2e}j')
@@ -380,7 +380,7 @@ def plot_1D_mode_evolutions(
         fig: Figure = plt.figure()
         fig.suptitle(f'DMD Mode {ind}\n$\omega$ = '
                      f'{self.omegas[ind].real:.2e}'
-                     f'{self.omegas[ind].imag:+.2e}\n'
+                     f'{self.omegas[ind].imag:+.2e}j\n'
                      f'$b$ = '
                      f'{self.amplitudes[ind].real:.2e}'
                      f'{self.amplitudes[ind].imag:+.2e}j')
@@ -428,8 +428,8 @@ def plot_eigs(
     ax.set_xlabel('Real Part')
     ax.set_ylabel('Imaginary Part')
 
-    points, = ax.plot(self.eigs.real, self.eigs.imag,
-                      'bo', label='Eigenvalues')
+    weights = self._b.real / max(self._b.real) * 5.0
+    points, = ax.plot(self.eigs.real, self.eigs.imag, 'bo')
 
     if show_unit_circle:
         unit_circle = plt.Circle(
@@ -441,7 +441,8 @@ def plot_eigs(
                        ['Eigenvalues', 'Unit Circle'],
                        loc='best'))
 
-    limit = 0.6 * np.max(np.ceil(np.absolute(self.eigs)))
+    limit = 0.75 * np.max(np.ceil(np.absolute(self.eigs)))
+    limit = max(limit, 1.25)
     ax.set_xlim((-limit, limit))
     ax.set_ylim((-limit, limit))
     ax.set_aspect('equal')
