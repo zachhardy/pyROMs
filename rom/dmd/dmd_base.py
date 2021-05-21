@@ -320,7 +320,7 @@ class DMDBase:
         vl = vl.T[non_zero_mask].T
         vr = vr.T[non_zero_mask].T
 
-        # Compute the full-rank eigenvectors
+        # Compute the full-order eigenvectors
         if self.exact:
             Vr = self._right_svd_modes[:, :self.n_modes]
             inv_Sr = np.reciprocal(self._singular_values[:self.n_modes])
@@ -331,7 +331,12 @@ class DMDBase:
             eigvecs_l = Ur @ vl
             eigvecs_r = Ur @ vr
 
-        # Full-rank eigenvalues are the low-rank eigenvalues
+        # Normalize the full-order eigenvectors
+        for m in range(self.n_modes):
+            eigvecs_l[:, m] /= norm(eigvecs_l[:, m])
+            eigvecs_r[:, m] /= norm(eigvecs_r[:, m])
+
+        # Full-order eigenvalues are the low-order eigenvalues
         eigvals = w
 
         return eigvals, eigvecs_l, eigvecs_r
@@ -367,9 +372,9 @@ class DMDBase:
 
         # Determine sorted index mapping
         if self.ordering == 'amplitudes':
-            idx = np.argsort(self.amplitudes)[::-1]
+            idx = np.argsort(self.amplitudes.real)[::-1]
         elif self.ordering == 'eigenvalues':
-            idx = np.argsort(self.eigs)[::-1]
+            idx = np.argsort(abs(self.eigs.real))[::-1]
 
         # Reset _eigs, _b, and _modes based on this
         self._b = self._b[idx]
