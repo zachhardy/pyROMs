@@ -428,7 +428,6 @@ def plot_eigs(
     ax.set_xlabel('Real Part')
     ax.set_ylabel('Imaginary Part')
 
-    weights = self._b.real / max(self._b.real) * 5.0
     points, = ax.plot(self.eigs.real, self.eigs.imag, 'bo')
 
     if show_unit_circle:

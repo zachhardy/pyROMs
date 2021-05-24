@@ -2,6 +2,7 @@ import numpy as np
 from numpy import ndarray
 from numpy.linalg import norm
 from scipy.linalg import eig, pinv
+
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.axes import Axes
