@@ -46,7 +46,7 @@ plt.show()
 
 # =================================== Fit a DMD model
 dmd = DMD(svd_rank=2).fit(X)
-dmd.plot_singular_values(logscale=False)
+dmd.plot_singular_values(logscale=True)
 dmd.plot_error_decay(normalized=False)
 dmd.plot_eigs()
 X_dmd = dmd.reconstructed_data.real
