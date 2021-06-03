@@ -52,11 +52,14 @@ class DMD(DMDBase):
         X1 = self._snapshots[1:].T
 
         # Compute the SVD
-        U, s, V, rank = compute_svd(X0, self.svd_rank)
-        self._n_modes = rank
-        self._left_svd_modes = U
-        self._right_svd_modes = V
-        self._singular_values = s
+        if not self.initialized:
+            U, s, V = np.linalg.svd(X0, full_matrices=False)
+            self._left_svd_modes = U
+            self._right_svd_modes = V.conj().T
+            self._singular_values = s
+            self.initialized = True
+
+        self._n_modes = self.compute_rank(self.svd_rank)
 
         # Compute the reduced-rank evolution operator
         self._A_tilde = self.construct_lowrank_op(X1)
