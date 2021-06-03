@@ -512,8 +512,7 @@ def plot_error_decay(
     """
     errors, n_modes = self.compute_error_decay(skip, end)
     spectrum = self.singular_values
-    if normalized:
-        spectrum /= sum(spectrum)
+    spectrum /= sum(spectrum)
 
     plt.figure()
     plt.xlabel('# of Modes')

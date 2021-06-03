@@ -64,7 +64,7 @@ class DMDBase:
         self._singular_values: ndarray = None
 
     def fit(self, X: ndarray,
-            original_time: dict = None) -> 'DMDBase':
+            verbose: bool = True) -> 'DMDBase':
         """
         Abstract method to fit the model to training data.
 
@@ -433,7 +433,7 @@ class DMDBase:
         X_pred = self.reconstructed_data
         errors = np.zeros(self.n_snapshots)
         for t in range(self.n_snapshots):
-            error = norm(X_pred[t] - X[t])
+            error = norm(X_pred[t] - X[t]) / norm(X[t])
             errors[t] = error
         return errors
 

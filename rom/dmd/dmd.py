@@ -29,8 +29,7 @@ class DMD(DMDBase):
         The sorting method applied to the dynamic modes.
     """
 
-    def fit(self, X: Union[list, ndarray],
-            verbose: bool = True) -> 'DMD':
+    def fit(self, X: ndarray, verbose: bool = True) -> 'DMD':
         """
         Fit the DMD model to the provided data.
 
@@ -38,13 +37,11 @@ class DMD(DMDBase):
         ----------
         X : ndarray (n_snapshots, n_features)
             A matrix of snapshots stored row-wise.
-        verbose : bool, default True
-            Flag for printing model summary.
         """
         X, x_shape = self.validate_data(X)
 
         # Save the input data
-        self._snapshots: ndarray = X
+        self._snapshots: ndarray = np.copy(X)
         self._snapshots_shape: tuple = x_shape
 
         # Split snapshots (n_features, n_snapshots - 1)
@@ -52,13 +49,12 @@ class DMD(DMDBase):
         X1 = self._snapshots[1:].T
 
         # Compute the SVD
-        if not self.initialized:
-            U, s, V = np.linalg.svd(X0, full_matrices=False)
-            self._left_svd_modes = U
-            self._right_svd_modes = V.conj().T
-            self._singular_values = s
-            self.initialized = True
+        U, s, V = np.linalg.svd(X0, full_matrices=False)
+        self._left_svd_modes = U
+        self._right_svd_modes = V.conj().T
+        self._singular_values = s
 
+        # Determine the number of modes
         self._n_modes = self.compute_rank(self.svd_rank)
 
         # Compute the reduced-rank evolution operator
