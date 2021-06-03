@@ -67,13 +67,13 @@ class DMD(DMDBase):
         # Compute amplitudes
         self._b = self.compute_amplitudes()
 
-        # Sort the modes
-        self.sort_modes()
-
         # Set default timesteps
         n = self.n_snapshots
         self.original_time = {'t0': 0, 'tf': n - 1, 'dt': 1}
         self.dmd_time = {'t0': 0, 'tf': n - 1, 'dt': 1}
+
+        # Sort the modes
+        self.sort_modes()
 
         # Print summary
         if verbose:
