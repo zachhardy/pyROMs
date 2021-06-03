@@ -275,6 +275,31 @@ class DMDBase:
         """
         return self.snapshots.shape[1]
 
+    def compute_rank(self, svd_rank: Rank) -> int:
+        """
+        Compute the SVD rank to use.
+
+        Parameters
+        ----------
+        svd_rank : int
+            The energy content to retain, or the fixed number
+            of POD modes to use.
+
+        Returns
+        -------
+        int
+            The number of POD modes to use.
+        """
+        X, s = self.snapshots, self.singular_values
+        if 0.0 < svd_rank < 1.0:
+            cumulative_energy = np.cumsum(s / sum(s))
+            rank = np.searchsorted(cumulative_energy, svd_rank) + 1
+        elif isinstance(svd_rank, int) and svd_rank >= 1:
+            rank = min(svd_rank, min(X.shape) - 1)
+        else:
+            rank = min(X.shape) - 1
+        return rank
+
     def construct_lowrank_op(self, X: ndarray) -> ndarray:
         """
         Construct the low-rank operator from the SVD of X
@@ -412,7 +437,8 @@ class DMDBase:
             errors[t] = error
         return errors
 
-    def compute_error_decay(self) -> ndarray:
+    def compute_error_decay(self, skip: int = 1,
+                            end: int = None) -> ndarray:
         """
         Compute the decay in the error.
 
@@ -424,18 +450,23 @@ class DMDBase:
         ndarray (n_modes,)
             The reproduction error as a function of n_modes.
         """
-        errors = []
-        svd_rank_original = self.svd_rank
         X, tinfo = self.snapshots, self.original_time
-        for n in range(min(X.shape) - 1):
-            params = self.get_params()
-            params['svd_rank'] = n + 1
-            dmd = self.__class__(**params)
-            dmd.fit(self.snapshots, self.original_time, verbose=False)
-            X_pred = dmd.reconstructed_data
+        svd_rank_original: int = self.svd_rank
+        if end is None or end > min(X.shape) - 1:
+            end = min(X.shape) - 1
+
+        errors: List[float] = []
+        n_modes: List[int] = []
+        for n in range(0, end, skip):
+            self.svd_rank = n + 1
+            self.fit(X, verbose=False)
+            X_pred = self.reconstructed_data
             error = norm(X - X_pred) / norm(X)
-            errors += [error]
-        return np.array(errors)
+            errors.append(error)
+            n_modes.append(n)
+        self.svd_rank = svd_rank_original
+        self.fit(X, verbose=False)
+        return np.array(errors), np.array(n_modes)
 
     def get_params(self) -> dict:
         return {'svd_rank': self.svd_rank, 'exact': self.exact,
@@ -467,30 +498,30 @@ class DMDBase:
         return snapshots, snapshots_shape
 
 
-def compute_error_decay(obj: DMDBase) -> ndarray:
-    """
-    Compute the decay in the error.
-
-    This method computes the error decay as a function
-    of truncation level.
-
-    Parameters
-    ----------
-    obj : DMDBase
-
-    Returns
-    -------
-    ndarray (n_modes,)
-        The reproduction error as a function of n_modes.
-    """
-    errors = []
-    X = obj.snapshots
-    for n in range(min(X.shape) - 1):
-        params = obj.get_params()
-        params['svd_rank'] = n + 1
-        dmd = obj.__class__(**params)
-        dmd.fit(X, verbose=False)
-        X_pred = dmd.reconstructed_data
-        error = norm(X - X_pred) / norm(X)
-        errors += [error]
-    return np.array(errors)
+# def compute_error_decay(obj: DMDBase) -> ndarray:
+#     """
+#     Compute the decay in the error.
+#
+#     This method computes the error decay as a function
+#     of truncation level.
+#
+#     Parameters
+#     ----------
+#     obj : DMDBase
+#
+#     Returns
+#     -------
+#     ndarray (n_modes,)
+#         The reproduction error as a function of n_modes.
+#     """
+#     errors = []
+#     X = obj.snapshots
+#     for n in range(min(X.shape) - 1):
+#         params = obj.get_params()
+#         params['svd_rank'] = n + 1
+#         dmd = obj.__class__(**params)
+#         dmd.fit(X, verbose=False)
+#         X_pred = dmd.reconstructed_data
+#         error = norm(X - X_pred) / norm(X)
+#         errors += [error]
+#     return np.array(errors)
