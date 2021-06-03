@@ -487,7 +487,9 @@ def plot_timestep_errors(
         plt.show()
 
 def plot_error_decay(
-        self: 'DMDBase', normalized: bool = True,
+        self: 'DMDBase', skip: int = 1,
+        end: int = None,
+        normalized: bool = True,
         logscale: bool = True,
         filename: str = None) -> None:
     """
@@ -495,6 +497,11 @@ def plot_error_decay(
 
     Parameters
     ----------
+    skip : int, default 1
+        The number of modes to skip in between each
+        data point.
+    end : int, default None
+        The most modes to reconstruct a model for.
     normalized : bool, default True
         If True, the singular values are normalized by
         the sum of all singular values.
@@ -503,8 +510,7 @@ def plot_error_decay(
     filename : str, default None
         If specified, the location to save the plot.
     """
-    from .dmd_base import compute_error_decay
-    errors = compute_error_decay(self)
+    errors, n_modes = self.compute_error_decay(skip, end)
     spectrum = self.singular_values
     if normalized:
         spectrum /= sum(spectrum)
@@ -514,7 +520,7 @@ def plot_error_decay(
     plt.ylabel(r'$\ell^2$ Error')
     plotter = plt.semilogy if logscale else plt.plot
     plotter(spectrum, 'b-*', label='Singular Values')
-    plotter(errors, 'r-*', label='Reconstruction Errors')
+    plotter(n_modes, errors, 'r-*', label='Reconstruction Errors')
     plt.grid(True)
     plt.legend()
     plt.tight_layout()
