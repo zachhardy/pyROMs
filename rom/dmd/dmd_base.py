@@ -373,9 +373,9 @@ class DMDBase:
 
         # Determine sorted index mapping
         if self.ordering == 'amplitudes':
-            idx = np.argsort(self.amplitudes.real)[::-1]
+            idx = np.argsort(np.absolute(self.amplitudes))[::-1]
         elif self.ordering == 'eigenvalues':
-            idx = np.argsort(abs(self.eigs.real))[::-1]
+            idx = np.argsort(np.absolute(self.omegas))[::-1]
 
         # Reset _eigs, _b, and _modes based on this
         self._b = self._b[idx]
@@ -394,7 +394,7 @@ class DMDBase:
         """
         X = self.snapshots
         X_pred = self.reconstructed_data
-        return norm(X - X_pred)
+        return norm(X - X_pred) / norm(X)
 
     def compute_timestep_errors(self) -> ndarray:
         """
@@ -433,7 +433,7 @@ class DMDBase:
             dmd = self.__class__(**params)
             dmd.fit(self.snapshots, self.original_time, verbose=False)
             X_pred = dmd.reconstructed_data
-            error = norm(X - X_pred)
+            error = norm(X - X_pred) / norm(X)
             errors += [error]
         return np.array(errors)
 
@@ -491,6 +491,6 @@ def compute_error_decay(obj: DMDBase) -> ndarray:
         dmd = obj.__class__(**params)
         dmd.fit(X, verbose=False)
         X_pred = dmd.reconstructed_data
-        error = norm(X - X_pred)
+        error = norm(X - X_pred) / norm(X)
         errors += [error]
     return np.array(errors)
