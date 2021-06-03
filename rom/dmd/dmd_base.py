@@ -496,32 +496,3 @@ class DMDBase:
             snapshots = np.transpose([np.asarray(x).ravel() for x in X])
             snapshots_shape = input_shapes[0]
         return snapshots, snapshots_shape
-
-
-# def compute_error_decay(obj: DMDBase) -> ndarray:
-#     """
-#     Compute the decay in the error.
-#
-#     This method computes the error decay as a function
-#     of truncation level.
-#
-#     Parameters
-#     ----------
-#     obj : DMDBase
-#
-#     Returns
-#     -------
-#     ndarray (n_modes,)
-#         The reproduction error as a function of n_modes.
-#     """
-#     errors = []
-#     X = obj.snapshots
-#     for n in range(min(X.shape) - 1):
-#         params = obj.get_params()
-#         params['svd_rank'] = n + 1
-#         dmd = obj.__class__(**params)
-#         dmd.fit(X, verbose=False)
-#         X_pred = dmd.reconstructed_data
-#         error = norm(X - X_pred) / norm(X)
-#         errors += [error]
-#     return np.array(errors)
