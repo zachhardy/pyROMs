@@ -3,10 +3,6 @@ from numpy import ndarray
 from numpy.linalg import norm
 from scipy.linalg import eig, pinv
 
-import matplotlib.pyplot as plt
-from matplotlib.figure import Figure
-from matplotlib.axes import Axes
-
 from typing import Union, Tuple, List
 
 Rank = Union[float, int]
@@ -41,7 +37,7 @@ class DMDBase:
                             plot_error_decay)
 
     def __init__(self, svd_rank: Rank = -1, exact: bool = False,
-                 ordering: str = 'amplitudes') -> None:
+                 ordering: str = "amplitudes") -> None:
         self.svd_rank: Rank = svd_rank
         self.exact: bool = exact
         self.ordering: str = ordering
@@ -56,20 +52,14 @@ class DMDBase:
         self._modes: ndarray = None
         self._n_modes: int = None
         self._eigs: ndarray = None
-        self._A_tilde: ndarray = None
+        self._a_tilde: ndarray = None
         self._b: ndarray = None
 
         self._left_svd_modes: ndarray = None
         self._right_svd_modes: ndarray = None
         self._singular_values: ndarray = None
 
-    def fit(self, X: ndarray,
-            verbose: bool = True) -> 'DMDBase':
-        """
-        Abstract method to fit the model to training data.
-
-        This must be inplemented in subclasses.
-        """
+    def fit(self, X: ndarray, verbose: bool = True) -> None:
         raise NotImplementedError(
             f'Subclasses must implement abstact method '
             f'{self.__class__.__name__}.fit')
@@ -151,7 +141,7 @@ class DMDBase:
         return np.exp(exp_arg) * self._b[:, None]
 
     @property
-    def A_tilde(self) -> ndarray:
+    def a_tilde(self) -> ndarray:
         """
         Get the reduced order evolution operator.
 
@@ -246,10 +236,6 @@ class DMDBase:
     def n_modes(self) -> int:
         """
         Get the number of modes.
-
-        Returns
-        -------
-        int
         """
         return self._n_modes
 
@@ -257,10 +243,6 @@ class DMDBase:
     def n_snapshots(self) -> int:
         """
         Get the number of snapshots.
-
-        Returns
-        -------
-        int
         """
         return self.snapshots.shape[0]
 
@@ -268,10 +250,6 @@ class DMDBase:
     def n_features(self) -> int:
         """
         Get the number of features in a snapshot.
-
-        Returns
-        -------
-        int
         """
         return self.snapshots.shape[1]
 
@@ -284,11 +262,6 @@ class DMDBase:
         svd_rank : int
             The energy content to retain, or the fixed number
             of POD modes to use.
-
-        Returns
-        -------
-        int
-            The number of POD modes to use.
         """
         X, s = self.snapshots, self.singular_values
         if 0.0 < svd_rank < 1.0:
@@ -338,7 +311,7 @@ class DMDBase:
             The right eigenvectors of the evolution operator.
 
         """
-        w, vl, vr = eig(self._A_tilde, left=True)
+        w, vl, vr = eig(self._a_tilde, left=True)
 
         # Filter out zero eigenvalues
         non_zero_mask = w != 0.0
@@ -411,11 +384,6 @@ class DMDBase:
     def reconstruction_error(self) -> float:
         """
         Compute the training data reconstruction error.
-
-        Returns
-        -------
-        float
-            The relative l2 reconstruction error.
         """
         X = self.snapshots
         X_pred = self.reconstructed_data
@@ -482,7 +450,7 @@ class DMDBase:
 
         Returns
         -------
-        The inputs
+        ndarray (
         """
         # Check for ndarrays
         if isinstance(X, ndarray) and X.ndim == 2:
@@ -491,8 +459,8 @@ class DMDBase:
         else:
             input_shapes = [np.asarray(x).shape for x in X]
             if len(set(input_shapes)) != 1:
-                msg = 'All snapshots do not have the same dimension.'
-                raise ValueError(msg)
+                raise ValueError(
+                    f"All snapshots do not have the same dimension.")
             snapshots = np.transpose([np.asarray(x).ravel() for x in X])
             snapshots_shape = input_shapes[0]
         return snapshots, snapshots_shape

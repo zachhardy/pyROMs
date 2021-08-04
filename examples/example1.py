@@ -1,31 +1,29 @@
 """
 This example is derived from the PyDMD tutorial 1.
 """
+import sys
 
 import numpy as np
-from numpy.linalg import norm
-
 import matplotlib.pyplot as plt
-plt.rcParams['pcolor.shading'] = 'auto'
-
-from matplotlib.figure import Figure
-from matplotlib.axes import Axes
-from typing import List
 
 from rom.dmd import DMD
+
+plt.rcParams['pcolor.shading'] = 'auto'
 
 
 # =================================== Signals
 def f1(x, t):
     return 1.0 / np.cosh(x + 3) * np.exp(2.3j * t)
 
+
 def f2(x, t):
     return 2.0 / np.cosh(x) * np.tanh(x) * np.exp(2.8j * t)
 
+
 # =================================== Define the meshgrid
-x = np.linspace(-5, 5, 65)
-t = np.linspace(0, 4*np.pi, 129)
-xgrid, tgrid = np.meshgrid(x, t)
+grid = np.linspace(-5, 5, 65)
+times = np.linspace(0, 4 * np.pi, 129)
+xgrid, tgrid = np.meshgrid(grid, times)
 
 # =================================== Generate the data
 X1 = f1(xgrid, tgrid)
@@ -34,7 +32,7 @@ X = X1 + X2
 
 # =================================== Plot the data
 fig = plt.figure(figsize=(12, 6))
-titles = [r'$f_1(x, t)$', r'$f_2(x, t)$', r'$f~(x, t)$']
+titles = [r'$f_1(grid, t)$', r'$f_2(grid, t)$', r'$f~(grid, t)$']
 data = [X1, X2, X]
 for n, title, d in zip(range(131, 134), titles, data):
     plt.subplot(n)
@@ -45,7 +43,8 @@ plt.tight_layout()
 plt.show()
 
 # =================================== Fit a DMD model
-dmd = DMD(svd_rank=2).fit(X)
+dmd = DMD(svd_rank=2)
+dmd.fit(X)
 dmd.plot_singular_values(logscale=True)
 dmd.plot_error_decay(normalized=False)
 dmd.plot_eigs()
@@ -61,7 +60,3 @@ for n, title, d in zip(range(131, 134), titles, data):
     plt.pcolormesh(xgrid, tgrid, d.real, cmap='jet')
     plt.colorbar()
 plt.show()
-
-
-
-

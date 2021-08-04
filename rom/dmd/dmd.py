@@ -14,22 +14,9 @@ from ..svd import compute_svd
 class DMD(DMDBase):
     """
     Dynamic mode decomposition model.
-
-    Parameters
-    ----------
-    svd_rank : int or float, default 1.0 - 1.0e-8
-        The SVD truncation rank. If -1, no truncation is used.
-        If a positive integer, the truncation rank is the argument.
-        If a float between 0 and 1, the minimum number of modes
-        needed to obtain an information content greater than the
-        argument is used.
-    exact : bool, default False
-        Flag for exact modes. If False, projected modes are used.
-    ordering : 'amplitudes' or 'eigenvalues', default 'eiganvalues'
-        The sorting method applied to the dynamic modes.
     """
 
-    def fit(self, X: ndarray, verbose: bool = True) -> 'DMD':
+    def fit(self, X: ndarray, verbose: bool = True) -> None:
         """
         Fit the DMD model to the provided data.
 
@@ -58,7 +45,7 @@ class DMD(DMDBase):
         self._n_modes = self.compute_rank(self.svd_rank)
 
         # Compute the reduced-rank evolution operator
-        self._A_tilde = self.construct_lowrank_op(X1)
+        self._a_tilde = self.construct_lowrank_op(X1)
 
         # Eigendecomposition of Atilde
         self._eigs, _, self._modes = self.eig_from_lowrank_op(X1)

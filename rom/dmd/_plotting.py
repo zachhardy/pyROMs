@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, List
 if TYPE_CHECKING:
     from .dmd_base import DMDBase
 
+
 def plot_singular_values(
         self: 'DMDBase', normalized: bool = True,
         logscale: bool = True,
@@ -67,7 +68,7 @@ def plot_1D_modes(
         input is to define which components to plot.
         The number of components is defined by the
         integer division of the snapshot length and the
-        length of the supplied grid, x.
+        length of the supplied grid.
     filename : str, default None
         If specified, the location to save the plot.
     """
@@ -83,7 +84,7 @@ def plot_1D_modes(
     # Check grid
     n_components = self.n_features // len(x)
     if not isinstance(n_components, int):
-        raise AssertionError('Incompatible x provided.')
+        raise AssertionError('Incompatible grid provided.')
 
     # Define indices iterable
     if indices is None:
@@ -308,6 +309,7 @@ def plot_1D_modes_and_dynamics(
         else:
             plt.show()
 
+
 def plot_1D_mode_evolutions(
         self, indices: List[int] = None,
         x: ndarray = None, t: ndarray = None,
@@ -349,7 +351,7 @@ def plot_1D_mode_evolutions(
     if not isinstance(n_components, int):
         raise AssertionError('Incompatible grid encountered.')
 
-    # Format x and t into meshgrid format, if not.
+    # Format grid and t into meshgrid format, if not.
     if x.ndim == t.ndim == 1:
         x, t = np.meshgrid(x, t)
     if x.ndim != 2 or t.ndim != 2:
