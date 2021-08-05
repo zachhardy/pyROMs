@@ -8,8 +8,10 @@ from typing import Union, Tuple
 Rank = Union[float, int]
 Dataset = Tuple[ndarray, ndarray]
 
+
 class PODBase:
-    """Principal Orthogonal Decomposition base class.
+    """
+    Principal Orthogonal Decomposition base class.
 
     Parameters
     ----------
@@ -21,16 +23,19 @@ class PODBase:
         argument is used.
     """
 
+    from ._plotting import (plot_singular_values,
+                            plot_coefficients,
+                            plot_reconstruction_errors)
+
     def __init__(self, svd_rank: Rank = -1) -> None:
         self.svd_rank: Rank = svd_rank
-        self.n_snapshots: int = 0
-        self.n_features: int = 0
-        self.n_parameters: int = 0
-        self.n_modes = 0
 
         self._snapshots: ndarray = None
         self._parameters: ndarray = None
+
+        self._n_modes: int = 0
         self._modes: ndarray = None
+
         self._singular_values: ndarray = None
         self._b: ndarray = None
 
@@ -46,6 +51,28 @@ class PODBase:
         return self._snapshots
 
     @property
+    def n_snapshots(self) -> int:
+        """
+        Get the number of snapshots provided to the model.
+
+        Returns
+        -------
+        int
+        """
+        return self.snapshots.shape[0]
+
+    @property
+    def n_features(self) -> int:
+        """
+        Get the number of features in each snapshot.
+
+        Returns
+        -------
+        int
+        """
+        return self.snapshots.shape[1]
+
+    @property
     def parameters(self) -> ndarray:
         """
         Get the original training parameters.
@@ -55,6 +82,17 @@ class PODBase:
         ndarray (n_snapshots, n_parameters)
         """
         return self._parameters
+
+    @property
+    def n_parameters(self) -> int:
+        """
+        Get the number of parameters that describe a snapshot.
+
+        Returns
+        -------
+        int
+        """
+        return self.parameters.shape[1]
 
     @property
     def modes(self) -> ndarray:
@@ -68,6 +106,16 @@ class PODBase:
         return self._modes[:, :self.n_modes]
 
     @property
+    def n_modes(self) -> int:
+        """
+        Get the number of modes.
+
+        Returns
+        -------
+        int
+        """
+        return self._n_modes
+    @property
     def amplitudes(self) -> ndarray:
         """
         Get the POD mode amplitudes that define the training data.
@@ -77,6 +125,17 @@ class PODBase:
         ndarray (n_snapshots, n_modes)
         """
         return self._b[:, :self.n_modes]
+
+    @property
+    def singular_values(self) -> ndarray:
+        """
+        Get the singular values of the POD modes.
+
+        Returns
+        -------
+        ndarray (n_snapshots,)
+        """
+        return self._singular_values
 
     @property
     def reconstructed_data(self) -> ndarray:
@@ -90,25 +149,39 @@ class PODBase:
         """
         return self.amplitudes @ self.modes.T
 
-    def fit(self, X: ndarray, Y: ndarray = None) -> 'PODBase':
-        """
-        Abstract method to fit the model to training data.
-
-        This must be inplemented in subclasses.
-        """
+    def fit(self, X: ndarray, Y: ndarray = None) -> None:
         raise NotImplementedError(
             f'Subclasses must implement abstact method '
             f'{self.__class__.__name__}.fit')
 
+    def compute_rank(self, svd_rank: Rank) -> int:
+        """
+        Compute the SVD rank to use.
+
+        Parameters
+        ----------
+        svd_rank : int
+            The energy content to retain, or the fixed number
+            of POD modes to use.
+        """
+        X, s = self.snapshots, self.singular_values
+        if 0.0 < svd_rank < 1.0:
+            cumulative_energy = np.cumsum(s / sum(s))
+            rank = np.searchsorted(cumulative_energy, svd_rank) + 1
+        elif isinstance(svd_rank, int) and svd_rank >= 1:
+            rank = min(svd_rank, min(X.shape) - 1)
+        else:
+            rank = min(X.shape) - 1
+        return rank
+
     def reconstruction_error(self) -> float:
         """
-        Get the error in the reconstructed training data using
+        Get the l2 error in the reconstructed training data using
         the truncated model.
 
         Returns
         -------
         float
-            The relative l2 error or the reconstructed data.
         """
         X = self.snapshots
         X_pred = self.reconstructed_data
@@ -116,136 +189,34 @@ class PODBase:
 
     def untruncated_reconstruction_error(self) -> float:
         """
-        Get the error in the reconstructed training data using
+        Get the l2 error in the reconstructed training data using
         an untruncated model.
 
         Returns
         -------
         float
-            The relative l2 error or the reconstructed data
-            from an untruncated model.
         """
         X = self.snapshots
         X_pred = X @ self._modes @ self._modes.T
         return norm(X - X_pred)
 
     def compute_error_decay(self) -> ndarray:
-        """Compute the decay in the error.
-
-        This method computes the error decay as a function
-        of truncation level.
+        """
+        Compute the decay in the error. This method computes the
+        error decay as a function number of modes included in the
+        model.
 
         Returns
         -------
         ndarray (n_modes,)
-            The reproduction error as a function of n_modes.
         """
         errors = []
         X = self.snapshots
         for n in range(self.n_snapshots):
             X_pred = X @ self._modes[:, :n] @ self._modes.T[:n]
-            err = norm(X - X_pred)
+            err = norm(X - X_pred) / norm(X)
             errors.append(err)
         return np.array(errors)
-
-    def plot_singular_values(self, logscale: bool = True) -> None:
-        """Plot the singular value spectrum.
-
-        Parameters
-        ----------
-        logscale : bool, default False
-            Flag for plotting on a linear or log scale y-axis.
-        """
-        s = self._singular_values
-        data = s / sum(s)
-
-        fig, ax = plt.subplots()
-        ax.set_xlabel('Singular Value #', fontsize=12)
-        ax.set_ylabel(r'$\sigma / \sum{{\sigma}}$', fontsize=12)
-        plotter = plt.semilogy if logscale else plt.plot
-        plotter(data, 'b-*', label='Singular Values')
-        ax.axvline(self.n_modes - 1, color='r',
-                   ymin=1e-12, ymax=1.0 - 1.0e-12)
-        ax.legend()
-        ax.grid(True)
-        plt.tight_layout()
-        plt.show()
-
-    def plot_coefficients(self, modes: ndarray = None,
-                          normalize: bool = False) -> None:
-        """Plot the POD coefficients as a function of parameter.
-
-        Parameters
-        ----------
-        modes : int or list of int, default 0
-            The mode indices to plot the coefficients for.
-            If an int, only that mode is plotted. If a list,
-            all modes with the supplied indices are plotted on the
-            same Axes.
-        normalize : bool, default False
-            Flag to remove the mean and normalize by the standard
-            deviation of each mode coefficient function.
-        ax : Axes, default None
-            The Axes to plot on.
-
-        Returns
-        -------
-        Axes
-            The Axes that was plotted on.
-        """
-        y = self.parameters
-
-        # One-dimensional parameter spaces
-        if y.shape[1] == 1:
-            # Sort by parameter values
-            ind = np.argsort(y, axis=0).ravel()
-            y, amplitudes = y[ind], self.amplitudes[ind]
-
-            # Get modes to plot
-            if isinstance(modes, int):
-                modes = [modes]
-            elif isinstance(modes, list):
-                modes = [m for m in modes if m < self.n_modes]
-            else:
-                modes = [m for m in range(self.n_modes)]
-
-            # Format amplitudes
-            if normalize:
-                amplitudes = self.center_data(amplitudes)
-
-            # Plot plot modes
-            for m in modes:
-                fig, ax = plt.subplots()
-                ax.set_xlabel('Parameter Value', fontsize=12)
-                ax.set_ylabel('POD Coefficient Value', fontsize=12)
-                ax.plot(y, amplitudes[:, m], '-*', label=f'Mode {m}')
-                plt.grid(True)
-                plt.legend()
-                plt.tight_layout()
-                plt.show()
-
-    def plot_reconstruction_errors(self, logscale: bool = True) -> None:
-        """Plot the reconstruction errors.
-
-        Parameters
-        ----------
-        logscale : bool
-            Flag for plotting on a linear or log scale y-axis.
-        """
-        errors = self.compute_error_decay()
-        s = self._singular_values
-        spectrum = s / sum(s)
-
-        fig, ax = plt.subplots()
-        ax.set_xlabel('# of Modes', fontsize=12)
-        ax.set_ylabel(r'Relative $\ell^2$ Error', fontsize=12)
-        plotter = plt.semilogy if logscale else plt.plot
-        plotter(spectrum, 'b-*', label='Singular Values')
-        plotter(errors, 'r-*', label='Reconstruction Errors')
-        ax.legend()
-        ax.grid(True)
-        plt.tight_layout()
-        plt.show()
 
     @staticmethod
     def center_data(data: ndarray) -> ndarray:

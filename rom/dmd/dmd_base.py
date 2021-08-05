@@ -51,18 +51,15 @@ class DMDBase:
 
         self._modes: ndarray = None
         self._n_modes: int = None
-        self._eigs: ndarray = None
+
         self._a_tilde: ndarray = None
+        self._eigs: ndarray = None
+
         self._b: ndarray = None
 
         self._left_svd_modes: ndarray = None
         self._right_svd_modes: ndarray = None
         self._singular_values: ndarray = None
-
-    def fit(self, X: ndarray, verbose: bool = True) -> None:
-        raise NotImplementedError(
-            f'Subclasses must implement abstact method '
-            f'{self.__class__.__name__}.fit')
 
     @property
     def snapshots(self) -> ndarray:
@@ -76,44 +73,48 @@ class DMDBase:
         return self._snapshots
 
     @property
-    def reconstructed_data(self) -> ndarray:
+    def n_snapshots(self) -> int:
         """
-        Get the reconstructed training data.
+        Get the number of snapshots passed to the model.
 
         Returns
         -------
-        ndarray (n_snapshots, n_features)
+        int
         """
-        return (self.modes @ self.dynamics).T
+        return self.snapshots.shape[0]
 
     @property
-    def original_timesteps(self) -> ndarray:
+    def n_features(self) -> int:
         """
-        Get the original time steps.
+        Get the number of features in a snapshot.
 
         Returns
         -------
-        ndarray (n_snapshots,)
+        int
         """
-        times = np.arange(
-            self.original_time['t0'],
-            self.original_time['tf'] + self.original_time['dt'],
-            self.original_time['dt'])
-        return times[[t <= self.original_time['tf'] for t in times]]
+        return self.snapshots.shape[1]
 
     @property
-    def dmd_timesteps(self) -> ndarray:
+    def singular_values(self) -> ndarray:
         """
-        Get the timesteps to sample.
+        Get the singular values.
 
         Returns
         -------
-        ndarray
+        ndarray (n_modes,)
         """
-        times = np.arange(self.dmd_time['t0'],
-                          self.dmd_time['tf'] + self.dmd_time['dt'],
-                          self.dmd_time['dt'])
-        return times[[t <= self.dmd_time['tf'] for t in times]]
+        return self._singular_values
+
+    @property
+    def a_tilde(self) -> ndarray:
+        """
+        Get the reduced order evolution operator.
+
+        Returns
+        -------
+        ndarray (n_modes, n_modes)
+        """
+        return self._a_tilde
 
     @property
     def modes(self) -> ndarray:
@@ -125,6 +126,17 @@ class DMDBase:
         ndarray (n_features, n_modes)
         """
         return self._modes
+
+    @property
+    def n_modes(self) -> int:
+        """
+        Get the number of modes.
+
+        Returns
+        -------
+        int
+        """
+        return self._n_modes
 
     @property
     def dynamics(self) -> ndarray:
@@ -139,28 +151,6 @@ class DMDBase:
         t0 = self.original_time['t0']
         exp_arg = np.outer(self.omegas, self.dmd_timesteps - t0)
         return np.exp(exp_arg) * self._b[:, None]
-
-    @property
-    def a_tilde(self) -> ndarray:
-        """
-        Get the reduced order evolution operator.
-
-        Returns
-        -------
-        ndarray (n_modes, n_modes)
-        """
-        return self._Atilde
-
-    @property
-    def amplitudes(self) -> ndarray:
-        """
-        Get the amplitudes of the DMD modes.
-
-        Returns
-        -------
-        ndarray (n_modes,)
-        """
-        return self._b
 
     @property
     def eigs(self) -> ndarray:
@@ -209,6 +199,46 @@ class DMDBase:
         return self.omegas.imag / 2.0 / np.pi
 
     @property
+    def amplitudes(self) -> ndarray:
+        """
+        Get the amplitudes of the DMD modes.
+
+        Returns
+        -------
+        ndarray (n_modes,)
+        """
+        return self._b
+
+    @property
+    def original_timesteps(self) -> ndarray:
+        """
+        Get the original time steps.
+
+        Returns
+        -------
+        ndarray (n_snapshots,)
+        """
+        times = np.arange(
+            self.original_time['t0'],
+            self.original_time['tf'] + self.original_time['dt'],
+            self.original_time['dt'])
+        return times[[t <= self.original_time['tf'] for t in times]]
+
+    @property
+    def dmd_timesteps(self) -> ndarray:
+        """
+        Get the timesteps to sample.
+
+        Returns
+        -------
+        ndarray (tf -t0 / dt,)
+        """
+        times = np.arange(self.dmd_time['t0'],
+                          self.dmd_time['tf'] + self.dmd_time['dt'],
+                          self.dmd_time['dt'])
+        return times[[t <= self.dmd_time['tf'] for t in times]]
+
+    @property
     def operator(self) -> ndarray:
         """
         Construct the approximate full order evolution operator.
@@ -222,36 +252,29 @@ class DMDBase:
         return self.modes @ np.diag(self.eigs) @ pinv_modes
 
     @property
-    def singular_values(self) -> ndarray:
+    def reconstructed_data(self) -> ndarray:
         """
-        Get the singular values.
+        Get the reconstructed training data.
 
         Returns
         -------
-        ndarray (n_modes,)
+        ndarray (n_snapshots, n_features)
         """
-        return self._singular_values
+        return (self.modes @ self.dynamics).T
 
     @property
-    def n_modes(self) -> int:
+    def reconstruction_error(self) -> float:
         """
-        Get the number of modes.
+        Compute the training data reconstruction error.
         """
-        return self._n_modes
+        X = self.snapshots
+        X_pred = self.reconstructed_data
+        return norm(X - X_pred) / norm(X)
 
-    @property
-    def n_snapshots(self) -> int:
-        """
-        Get the number of snapshots.
-        """
-        return self.snapshots.shape[0]
-
-    @property
-    def n_features(self) -> int:
-        """
-        Get the number of features in a snapshot.
-        """
-        return self.snapshots.shape[1]
+    def fit(self, X: ndarray, verbose: bool = True) -> None:
+        raise NotImplementedError(
+            f'Subclasses must implement abstact method '
+            f'{self.__class__.__name__}.fit')
 
     def compute_rank(self, svd_rank: Rank) -> int:
         """
@@ -372,22 +395,13 @@ class DMDBase:
         # Determine sorted index mapping
         if self.ordering == 'amplitudes':
             idx = np.argsort(np.absolute(self.amplitudes))[::-1]
-        elif self.ordering == 'eigenvalues':
+        else:
             idx = np.argsort(np.absolute(self.omegas))[::-1]
 
         # Reset _eigs, _b, and _modes based on this
         self._b = self._b[idx]
         self._eigs = self._eigs[idx]
         self._modes = self._modes[:, idx]
-
-    @property
-    def reconstruction_error(self) -> float:
-        """
-        Compute the training data reconstruction error.
-        """
-        X = self.snapshots
-        X_pred = self.reconstructed_data
-        return norm(X - X_pred) / norm(X)
 
     def compute_timestep_errors(self) -> ndarray:
         """
@@ -450,7 +464,7 @@ class DMDBase:
 
         Returns
         -------
-        ndarray (
+        ndarray, Tuple[int, int]
         """
         # Check for ndarrays
         if isinstance(X, ndarray) and X.ndim == 2:

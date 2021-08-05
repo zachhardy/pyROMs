@@ -1,34 +1,26 @@
 import numpy as np
+
 from numpy import ndarray
 from numpy.linalg import norm
 from scipy.interpolate.ndgriddata import griddata
 import matplotlib.pyplot as plt
+from typing import Union
 
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import ConstantKernel as C
 from sklearn.gaussian_process.kernels import RBF
 
 from .pod_base import PODBase
-from ..svd import compute_svd
 
-from typing import Union
-
+Rank = Union[float, int]
 TestData = Union[float, ndarray]
 
+
 class POD(PODBase):
-    """Principal Orthogonal Decomposition class.
-
-    Parameters
-    ----------
-    svd_rank : int or float, default -1
-        The SVD truncation rank. If -1, no truncation is used.
-        If a positive integer, the truncation rank is the argument.
-        If a float between 0 and 1, the minimum number of modes
-        needed to obtain an information content greater than the
-        argument is used.
     """
-
-    def fit(self, X: ndarray, Y: ndarray = None) -> 'POD':
+    Principal Orthogonal Decomposition class.
+    """
+    def fit(self, X: ndarray, Y: ndarray = None) -> None:
         """
         Compute the principal orthogonal decomposition
         of the inupt data.
@@ -49,15 +41,14 @@ class POD(PODBase):
         # Save the input data
         self._snapshots = np.copy(X)
         self._parameters = np.copy(Y)
-        self.n_snapshots = self._snapshots.shape[0]
-        self.n_features = self._snapshots.shape[1]
-        self.n_parameters = self._parameters.shape[1]
 
         # Perform the SVD
-        U, s, _, rank = compute_svd(X.T, self.svd_rank)
+        U, s, V = np.linalg.svd(X, full_matrices=False)
         self._modes = U  # shape = (n_features, n_snapshots)
         self._singular_values = s
-        self.n_modes = rank
+
+        # Deterine the number of modes
+        self._n_modes = self.compute_rank(self.svd_rank)
 
         # Compute coefficients
         self._b = self.transform(X)
@@ -83,7 +74,6 @@ class POD(PODBase):
         if X.shape[1] != self.n_features:
             raise AssertionError('The number of features in X and '
                                  'the training data must agree.')
-        rank = self.n_modes
         return X @ self.modes
 
     def predict(self, Y: ndarray, method: str = 'cubic') -> ndarray:
@@ -137,7 +127,7 @@ class POD(PODBase):
             amplitudes = griddata(*args, method=method)
 
         # Gaussian Process interpolation
-        elif method == 'gp':
+        else:
             # TODO: This needs some work for consistent accuracy
             kernel = C(1.0) * RBF(1.0)
             gp = GaussianProcessRegressor(kernel, n_restarts_optimizer=100,
