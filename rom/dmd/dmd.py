@@ -1,14 +1,8 @@
 import numpy as np
 from numpy import ndarray
 from numpy.linalg import norm
-from scipy.linalg import eig, pinv2
-
-import matplotlib.pyplot as plt
-
-from typing import Union
 
 from .dmd_base import DMDBase
-from ..svd import compute_svd
 
 
 class DMD(DMDBase):
@@ -25,11 +19,11 @@ class DMD(DMDBase):
         X : ndarray (n_snapshots, n_features)
             A matrix of snapshots stored row-wise.
         """
-        X, x_shape = self.validate_data(X)
+        X, X_shape = self.validate_data(X)
 
         # Save the input data
         self._snapshots: ndarray = np.copy(X)
-        self._snapshots_shape: tuple = x_shape
+        self._snapshots_shape: tuple = X_shape
 
         # Split snapshots (n_features, n_snapshots - 1)
         X0 = self._snapshots[:-1].T

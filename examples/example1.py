@@ -32,11 +32,13 @@ X = X1 + X2
 
 # =================================== Plot the data
 fig = plt.figure(figsize=(12, 6))
-titles = [r'$f_1(grid, t)$', r'$f_2(grid, t)$', r'$f~(grid, t)$']
+titles = [r'$f_1(x, t)$', r'$f_2(x, t)$', r'$f~(x, t)$']
 data = [X1, X2, X]
 for n, title, d in zip(range(131, 134), titles, data):
     plt.subplot(n)
     plt.title(title)
+    plt.xlabel("x")
+    plt.ylabel("t")
     plt.pcolormesh(xgrid, tgrid, d.real, cmap='jet')
     plt.colorbar()
 plt.tight_layout()
@@ -57,6 +59,9 @@ data = [X, X_dmd, abs((X - X_dmd).real)]
 for n, title, d in zip(range(131, 134), titles, data):
     plt.subplot(n)
     plt.title(title)
+    plt.xlabel("x")
+    plt.ylabel("t")
     plt.pcolormesh(xgrid, tgrid, d.real, cmap='jet')
     plt.colorbar()
+plt.tight_layout()
 plt.show()
