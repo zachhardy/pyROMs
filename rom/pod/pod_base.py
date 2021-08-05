@@ -115,6 +115,7 @@ class PODBase:
         int
         """
         return self._n_modes
+
     @property
     def amplitudes(self) -> ndarray:
         """

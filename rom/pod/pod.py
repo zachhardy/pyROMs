@@ -27,13 +27,10 @@ class POD(PODBase):
 
         Parameters
         ----------
-        X : ndarray
+        X : ndarray (n_snapshots, n_features)
             The training snapshots stored row-wise.
-            The shape should be (n_snapshots, n_features)
-        Y : ndarray, default None
+        Y : ndarray (n_snapshots, n_parameters), default None
             The training parameters stored row-wise.
-            The shape should be (n_snapshots, n_parameters)
-            if not None.
 
         """
         X, Y = self._validate_data(X, Y)
@@ -43,7 +40,7 @@ class POD(PODBase):
         self._parameters = np.copy(Y)
 
         # Perform the SVD
-        U, s, V = np.linalg.svd(X, full_matrices=False)
+        U, s, V = np.linalg.svd(X.T, full_matrices=False)
         self._modes = U  # shape = (n_features, n_snapshots)
         self._singular_values = s
 
