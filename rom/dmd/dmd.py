@@ -21,41 +21,37 @@ class DMD(DMDBase):
         """
         X, X_shape = self.validate_data(X)
 
-        # Save the input data
+        # ======================================== Save the input data
         self._snapshots: ndarray = np.copy(X)
         self._snapshots_shape: tuple = X_shape
 
-        # Split snapshots (n_features, n_snapshots - 1)
+        # ======================================== Split snapshots
         X0 = self._snapshots[:-1].T
         X1 = self._snapshots[1:].T
 
-        # Compute the SVD
-        U, s, V = np.linalg.svd(X0, full_matrices=False)
-        self._left_svd_modes = U
-        self._right_svd_modes = V.conj().T
-        self._singular_values = s
+        # ======================================== Compute the SVD
+        U, s, V = self._compute_svd(X0)
 
-        # Determine the number of modes
-        self._n_modes = self.compute_rank(self.svd_rank)
+        # ======================================== Low-rank operator
+        self._a_tilde = self._construct_atilde(U, s, V, X1)
+        self._eigs, self._eigvecs = np.linalg.eig(self._a_tilde)
 
-        # Compute the reduced-rank evolution operator
-        self._a_tilde = self.construct_lowrank_op(X1)
+        # ======================================== Compute DMD modes
+        self._modes = self._compute_modes(U, s, V, X1)
 
-        # Eigendecomposition of Atilde
-        self._eigs, _, self._modes = self.eig_from_lowrank_op(X1)
-
-        # Compute amplitudes
-        self._b = self.compute_amplitudes()
-
-        # Set default timesteps
+        # ======================================== Set default time steps
         n = self.n_snapshots
         self.original_time = {'t0': 0, 'tf': n - 1, 'dt': 1}
         self.dmd_time = {'t0': 0, 'tf': n - 1, 'dt': 1}
 
-        # Sort the modes
-        self.sort_modes()
+        # ======================================== Compute amplitudes
+        self._b = self._compute_amplitudes()
 
-        # Print summary
+        # ======================================== Sort and filter modes
+        self.sort_modes()
+        self.filter_out_unstable_modes()
+
+        # ======================================== Print summary
         if verbose:
             print('\n*** DMD model information ***')
 
@@ -67,7 +63,7 @@ class DMD(DMDBase):
 
             ic = self.snapshots[0]
             fit = (self.modes @ self.amplitudes).ravel()
-            ic_error = norm(ic - fit)
+            ic_error = norm(ic - fit) / norm(ic)
             print(f'Initial Condition Error:\t{ic_error:.3e}')
 
             error = self.reconstruction_error

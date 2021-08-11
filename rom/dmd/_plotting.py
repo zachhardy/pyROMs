@@ -32,11 +32,11 @@ def plot_singular_values(
         spectrum /= sum(spectrum)
 
     plt.figure()
-    plt.xlabel('Singular Value #')
-    plt.ylabel(r'$\sigma / \sum{{\sigma}}$')
+    plt.xlabel("Singular Value #")
+    plt.ylabel(r"$\sigma / \sum{{\sigma}}$")
     plotter = plt.semilogy if logscale else plt.plot
-    plotter(spectrum, 'b-*', label='Singular Values')
-    plt.axvline(self.n_modes - 1, color='r',
+    plotter(spectrum, "b-*", label="Singular Values")
+    plt.axvline(self.n_modes - 1, color="r",
                 ymin=1e-12, ymax=1.0 - 1.0e-12)
     plt.legend()
     plt.grid(True)
@@ -44,9 +44,7 @@ def plot_singular_values(
 
     if filename is not None:
         basename, ext = splitext(filename)
-        plt.savefig(basename + '.pdf')
-    else:
-        plt.show()
+        plt.savefig(basename + ".pdf")
 
 
 def plot_1D_modes(
@@ -75,8 +73,8 @@ def plot_1D_modes(
     # Initialization check
     if self.modes is None:
         raise AssertionError(
-            f'DMD model is not initialized. To initialize a '
-            f'model, run the {self.__class__.__name__}.fit method.'
+            f"DMD model is not initialized. To initialize a "
+            f"model, run the {self.__class__.__name__}.fit method."
         )
     if x is None:
         x = np.arange(0, self.n_features, 1)
@@ -84,7 +82,7 @@ def plot_1D_modes(
     # Check grid
     n_components = self.n_features // len(x)
     if not isinstance(n_components, int):
-        raise AssertionError('Incompatible grid provided.')
+        raise AssertionError("Incompatible grid provided.")
 
     # Define indices iterable
     if indices is None:
@@ -92,7 +90,7 @@ def plot_1D_modes(
     elif isinstance(indices, int):
         indices = [indices]
     if any([not 0 <= ind < self.n_modes for ind in indices]):
-        raise AssertionError('Invalid mode index encountered.')
+        raise AssertionError("Invalid mode index encountered.")
 
     # Define components iterable
     if components is None:
@@ -100,28 +98,28 @@ def plot_1D_modes(
     elif isinstance(components, int):
         components = [components]
     if any([c >= n_components for c in components]):
-        raise AssertionError('Invalid component encountered.')
+        raise AssertionError("Invalid component encountered.")
 
     # Loop over indices of profiles to plot
     for ind in indices:
         fig: Figure = plt.figure()
-        fig.suptitle(f'DMD Mode {ind}\n$\omega$ = '
-                     f'{self.omegas[ind].real:.2e}'
-                     f'{self.omegas[ind].imag:+.2e}j\n'
-                     f'$b$ = '
-                     f'{self.amplitudes[ind].real:.2e}'
-                     f'{self.amplitudes[ind].imag:+.2e}j')
+        fig.suptitle(f"DMD Mode {ind}\n$\omega$ = "
+                     f"{self.omegas[ind].real:.2e}"
+                     f"{self.omegas[ind].imag:+.2e}j\n"
+                     f"$b$ = "
+                     f"{self.amplitudes[ind].real:.2e}"
+                     f"{self.amplitudes[ind].imag:+.2e}j")
 
         real_ax: Axes = fig.add_subplot(1, 2, 1)
         imag_ax: Axes = fig.add_subplot(1, 2, 2)
 
-        real_ax.set_title('Real')
-        imag_ax.set_title('Imaginary')
+        real_ax.set_title("Real")
+        imag_ax.set_title("Imaginary")
 
         # Loop over components
         mode = self.modes.T[ind]
         for c in components:
-            label = f'Component {c}'
+            label = f"Component {c}"
             vals = mode[c::n_components]
             real_ax.plot(x, vals.real, label=label)
             imag_ax.plot(x, vals.imag, label=label)
@@ -134,9 +132,7 @@ def plot_1D_modes(
 
         if filename is not None:
             basename, ext = splitext(filename)
-            plt.savefig(basename + f'_{ind}.pdf')
-        else:
-            plt.show()
+            plt.savefig(basename + f"_{ind}.pdf")
 
 
 def plot_dynamics(
@@ -158,8 +154,8 @@ def plot_dynamics(
     # Initialization check
     if self.dynamics is None:
         raise AssertionError(
-            f'DMD model is not initialized. To initialize a '
-            f'model, run the {self.__class__.__name__}.fit method.'
+            f"DMD model is not initialized. To initialize a "
+            f"model, run the {self.__class__.__name__}.fit method."
         )
     if t is None:
         t = self.original_timesteps
@@ -170,23 +166,23 @@ def plot_dynamics(
     elif isinstance(indices, int):
         indices = [indices]
     if any([not 0 <= ind < self.n_modes for ind in indices]):
-        raise AssertionError('Invalid mode index encountered.')
+        raise AssertionError("Invalid mode index encountered.")
 
     # Loop over indices
     for ind in indices:
         fig: Figure = plt.figure()
-        fig.suptitle(f'DMD Mode {ind}\n$\omega$ = '
-                     f'{self.omegas[ind].real:.2e}'
-                     f'{self.omegas[ind].imag:+.2e}j\n'
-                     f'$b$ = '
-                     f'{self.amplitudes[ind].real:.2e}'
-                     f'{self.amplitudes[ind].imag:+.2e}j')
+        fig.suptitle(f"DMD Mode {ind}\n$\omega$ = "
+                     f"{self.omegas[ind].real:.2e}"
+                     f"{self.omegas[ind].imag:+.2e}j\n"
+                     f"$b$ = "
+                     f"{self.amplitudes[ind].real:.2e}"
+                     f"{self.amplitudes[ind].imag:+.2e}j")
 
         real_ax: Axes = fig.add_subplot(1, 2, 1)
         imag_ax: Axes = fig.add_subplot(1, 2, 2)
 
-        real_ax.set_title('Real')
-        imag_ax.set_title('Imaginary')
+        real_ax.set_title("Real")
+        imag_ax.set_title("Imaginary")
 
         dynamic = self.dynamics[ind]
         real_ax.plot(t, dynamic.real)
@@ -198,9 +194,7 @@ def plot_dynamics(
 
         if filename is not None:
             basename, ext = splitext(filename)
-            plt.savefig(basename + f'_{ind}.pdf')
-        else:
-            plt.show()
+            plt.savefig(basename + f"_{ind}.pdf")
 
 
 def plot_1D_modes_and_dynamics(
@@ -231,8 +225,8 @@ def plot_1D_modes_and_dynamics(
     # Initialization check
     if self.modes is None:
         raise AssertionError(
-            f'DMD model is not initialized. To initialize a '
-            f'model, run the {self.__class__.__name__}.fit method.'
+            f"DMD model is not initialized. To initialize a "
+            f"model, run the {self.__class__.__name__}.fit method."
         )
     if x is None:
         x = np.arange(0, self.n_features, 1)
@@ -242,7 +236,7 @@ def plot_1D_modes_and_dynamics(
     # Check grid
     n_components = self.n_features // len(x)
     if not isinstance(n_components, int):
-        raise AssertionError('Incompatible grid encountered.')
+        raise AssertionError("Incompatible grid encountered.")
 
     # Define indices iterable
     if indices is None:
@@ -251,40 +245,43 @@ def plot_1D_modes_and_dynamics(
         indices = [indices]
 
     # Filter out bad indices
-    indices = [i for i in indices if -self.n_modes <= i < self.n_modes]
+    n_modes = self.n_modes
+    indices = [i for i in indices if -n_modes <= i < n_modes]
 
     # Define components iterable
     if components is None:
         components = list(range(n_components))
     elif isinstance(components, int):
         components = [components]
-    if any([not -n_components <= c < n_components for c in components]):
-        raise AssertionError('Invalid component encountered.')
+
+    for c in components:
+        if not -n_components <= c < n_components:
+            raise AssertionError("Invalid component encountered.")
 
     # Loop over indices
     for ind in indices:
         fig: Figure = plt.figure()
-        fig.suptitle(f'DMD Mode {ind}\n$\omega$ = '
-                     f'{self.omegas[ind].real:.2e}'
-                     f'{self.omegas[ind].imag:+.2e}j\n'
-                     f'$b$ = '
-                     f'{self.amplitudes[ind].real:.2e}'
-                     f'{self.amplitudes[ind].imag:+.2e}j')
+        fig.suptitle(f"DMD Mode {ind}\n$\omega$ = "
+                     f"{self.omegas[ind].real:.2e}"
+                     f"{self.omegas[ind].imag:+.2e}j\n"
+                     f"$b$ = "
+                     f"{self.amplitudes[ind].real:.2e}"
+                     f"{self.amplitudes[ind].imag:+.2e}j")
 
         real_axs: List[Axes] = [fig.add_subplot(2, 2, 1),
                                 fig.add_subplot(2, 2, 2)]
         imag_axs: List[Axes] = [fig.add_subplot(2, 2, 3),
                                 fig.add_subplot(2, 2, 4)]
 
-        real_axs[0].set_title('Profile')
-        real_axs[1].set_title('Dynamic')
-        real_axs[0].set_ylabel('Real')
-        imag_axs[0].set_ylabel('Imaginary')
+        real_axs[0].set_title("Profile")
+        real_axs[1].set_title("Dynamic")
+        real_axs[0].set_ylabel("Real")
+        imag_axs[0].set_ylabel("Imaginary")
 
         # Plot modes
         mode = self.modes.T[ind]
         for c in components:
-            label = f'Component {c}'
+            label = f"C{c}"
             vals = mode[c::n_components]
             real_axs[0].plot(x, vals.real, label=label)
             imag_axs[0].plot(x, vals.imag, label=label)
@@ -305,9 +302,7 @@ def plot_1D_modes_and_dynamics(
 
         if filename is not None:
             basename, ext = splitext(filename)
-            plt.savefig(basename + f'_{ind}.pdf')
-        else:
-            plt.show()
+            plt.savefig(basename + f"_{ind}.pdf")
 
 
 def plot_1D_mode_evolutions(
@@ -338,8 +333,8 @@ def plot_1D_mode_evolutions(
     # Initialization check
     if self.modes is None:
         raise AssertionError(
-            f'DMD model is not initialized. To initialize a '
-            f'model, run the {self.__class__.__name__}.fit method.'
+            f"DMD model is not initialized. To initialize a "
+            f"model, run the {self.__class__.__name__}.fit method."
         )
     if x is None:
         x = np.arange(0, self.n_features, 1)
@@ -349,13 +344,13 @@ def plot_1D_mode_evolutions(
     # Check grid
     n_components = self.n_features // len(x)
     if not isinstance(n_components, int):
-        raise AssertionError('Incompatible grid encountered.')
+        raise AssertionError("Incompatible grid encountered.")
 
     # Format grid and t into meshgrid format, if not.
     if x.ndim == t.ndim == 1:
         x, t = np.meshgrid(x, t)
     if x.ndim != 2 or t.ndim != 2:
-        raise AssertionError('x, t must be a meshgrid format.')
+        raise AssertionError("x, t must be a meshgrid format.")
 
     # Define indices iterable
     if indices is None:
@@ -366,7 +361,7 @@ def plot_1D_mode_evolutions(
     # Filter out bad indices
     indices = [i for i in indices if 0 <= i < self.n_modes]
     if any([not 0 <= ind < self.n_modes for ind in indices]):
-        raise AssertionError('Invalid mode index encountered.')
+        raise AssertionError("Invalid mode index encountered.")
 
     # Define components iterable
     if components is None:
@@ -374,35 +369,34 @@ def plot_1D_mode_evolutions(
     elif isinstance(components, int):
         components = [components]
     if any([c >= n_components for c in components]):
-        raise AssertionError('Invalid component encountered.')
+        raise AssertionError("Invalid component encountered.")
     dim = int(np.ceil(np.sqrt(len(components))))
 
     # Loop over indices
     for ind in indices:
         fig: Figure = plt.figure()
-        fig.suptitle(f'DMD Mode {ind}\n$\omega$ = '
-                     f'{self.omegas[ind].real:.2e}'
-                     f'{self.omegas[ind].imag:+.2e}j\n'
-                     f'$b$ = '
-                     f'{self.amplitudes[ind].real:.2e}'
-                     f'{self.amplitudes[ind].imag:+.2e}j')
+        fig.suptitle(f"DMD Mode {ind}\n$\omega$ = "
+                     f"{self.omegas[ind].real:.2e}"
+                     f"{self.omegas[ind].imag:+.2e}j\n"
+                     f"$b$ = "
+                     f"{self.amplitudes[ind].real:.2e}"
+                     f"{self.amplitudes[ind].imag:+.2e}j")
 
         # Plot the evolution component-wise
-        mode = dmd.modes.T[ind].reshape(-1, 1)
-        dynamic = dmd.dynamics[ind].reshape(1, -1)
+        mode = self.modes.T[ind].reshape(-1, 1)
+        dynamic = self.dynamics[ind].reshape(1, -1)
         evolution = (mode @ dynamic).T.real
         for n, c in enumerate(components):
             ax: Axes = fig.add_subplot(dim, dim, n + 1)
             vals = evolution[:, c::n_components]
-            plt.pcolormesh(x, t, vals, cmap='jet')
+            plt.pcolormesh(x, t, vals, cmap="jet", shading="auto",
+                           vmin=vals.min(), vmax=vals.max())
             plt.colorbar()
         plt.tight_layout()
 
         if filename is not None:
             basename, ext = splitext(basename)
-            plt.savefig(basename + f'_{ind}.pdf')
-        else:
-            plt.show()
+            plt.savefig(basename + f"_{ind}.pdf")
 
 
 def plot_eigs(
@@ -421,40 +415,38 @@ def plot_eigs(
     """
     if self.eigs is None:
         raise AssertionError(
-            f'DMD model is not initialized. To initialize a '
-            f'model, run the {self.__class__.__name__}.fit method.'
+            f"DMD model is not initialized. To initialize a "
+            f"model, run the {self.__class__.__name__}.fit method."
         )
 
     fig: Figure = plt.figure(figsize=(6, 6))
     ax: Axes = plt.gca()
-    ax.set_xlabel('Real Part')
-    ax.set_ylabel('Imaginary Part')
+    ax.set_xlabel("Real Part")
+    ax.set_ylabel("Imaginary Part")
 
-    points, = ax.plot(self.eigs.real, self.eigs.imag, 'bo')
+    points, = ax.plot(self.eigs.real, self.eigs.imag, "bo")
 
     if show_unit_circle:
         unit_circle = plt.Circle(
-            (0.0, 0.0), 1.0, fill=False, color='green',
-            label='Unit Circle', linestyle='--')
+            (0.0, 0.0), 1.0, fill=False, color="green",
+            label="Unit Circle", linestyle="--")
         ax.add_artist(unit_circle)
         ax.add_artist(
             plt.legend([points, unit_circle],
-                       ['Eigenvalues', 'Unit Circle'],
-                       loc='best'))
+                       ["Eigenvalues", "Unit Circle"],
+                       loc="best"))
 
     limit = 0.75 * np.max(np.ceil(np.absolute(self.eigs)))
     limit = max(limit, 1.25)
     ax.set_xlim((-limit, limit))
     ax.set_ylim((-limit, limit))
-    ax.set_aspect('equal')
+    ax.set_aspect("equal")
     ax.grid(True)
     plt.tight_layout()
 
     if filename is not None:
         basename, ext = splitext(filename)
-        plt.savefig(basename + '.pdf')
-    else:
-        plt.show()
+        plt.savefig(basename + ".pdf")
 
 
 def plot_timestep_errors(
@@ -474,19 +466,18 @@ def plot_timestep_errors(
 
     # Setup plot
     plt.figure()
-    plt.xlabel('Time (s)')
-    plt.ylabel(r'Relative $\ell^2$ Error')
+    plt.xlabel("Time (s)")
+    plt.ylabel(r"Relative $\ell^2$ Error")
     plotter = plt.semilogy if logscale else plt.plot
-    plotter(times, errors, 'r-*', label='Reconstruction Error')
+    plotter(times, errors, "r-*", label="Reconstruction Error")
     plt.grid(True)
     plt.legend()
     plt.tight_layout()
 
     if filename is not None:
         basename, ext = splitext(filename)
-        plt.savefig(basename + '.pdf')
-    else:
-        plt.show()
+        plt.savefig(basename + ".pdf")
+
 
 def plot_error_decay(
         self: 'DMDBase', skip: int = 1,
@@ -517,17 +508,15 @@ def plot_error_decay(
     spectrum /= sum(spectrum)
 
     plt.figure()
-    plt.xlabel('# of Modes')
-    plt.ylabel(r'$\ell^2$ Error')
+    plt.xlabel("# of Modes")
+    plt.ylabel(r"$\ell^2$ Error")
     plotter = plt.semilogy if logscale else plt.plot
-    plotter(spectrum, 'b-*', label='Singular Values')
-    plotter(n_modes, errors, 'r-*', label='Reconstruction Errors')
+    plotter(spectrum, "b-*", label="Singular Values")
+    plotter(n_modes, errors, "r-*", label="Reconstruction Errors")
     plt.grid(True)
     plt.legend()
     plt.tight_layout()
 
     if filename is not None:
         basename, ext = splitext(filename)
-        plt.savefig(basename + '.pdf')
-    else:
-        plt.show()
+        plt.savefig(basename + ".pdf")
