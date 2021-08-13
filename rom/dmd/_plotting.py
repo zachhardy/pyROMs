@@ -1,12 +1,12 @@
 import numpy as np
 from numpy import ndarray
-from numpy.linalg import norm
 from os.path import splitext
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.axes import Axes
 
 from typing import TYPE_CHECKING, List
+
 if TYPE_CHECKING:
     from .dmd_base import DMDBase
 
@@ -16,6 +16,7 @@ def plot_singular_values(
         logscale: bool = True,
         filename: str = None) -> None:
     """
+    Plot the singular value spectrum.
 
     Parameters
     ----------
@@ -57,7 +58,7 @@ def plot_1D_modes(
 
     Parameters
     ----------
-    indices : list of int, default None
+    indices : List[int], default None
         The indices of the modes to plot.
     x : ndarray, default None
         The spatial grid.
@@ -395,7 +396,7 @@ def plot_1D_mode_evolutions(
         plt.tight_layout()
 
         if filename is not None:
-            basename, ext = splitext(basename)
+            basename, ext = splitext(filename)
             plt.savefig(basename + f"_{ind}.pdf")
 
 
@@ -482,7 +483,6 @@ def plot_timestep_errors(
 def plot_error_decay(
         self: 'DMDBase', skip: int = 1,
         end: int = None,
-        normalized: bool = True,
         logscale: bool = True,
         filename: str = None) -> None:
     """
@@ -495,9 +495,6 @@ def plot_error_decay(
         data point.
     end : int, default None
         The most modes to reconstruct a model for.
-    normalized : bool, default True
-        If True, the singular values are normalized by
-        the sum of all singular values.
     logscale : bool
         Flag for plotting on a linear or log scale y-axis.
     filename : str, default None

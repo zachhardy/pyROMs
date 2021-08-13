@@ -61,8 +61,7 @@ class DMDBase:
     @property
     def snapshots(self) -> ndarray:
         """
-        Get the original snapshots passed during
-        the `fit` method.
+        Get the original training data.
 
         Returns
         -------
@@ -73,8 +72,7 @@ class DMDBase:
     @property
     def n_snapshots(self) -> int:
         """
-        Get the number of snapshots used to construct
-        the DMD model.
+        Get the number of snapshots in the training data.
 
         Returns
         -------
@@ -85,8 +83,7 @@ class DMDBase:
     @property
     def n_features(self) -> int:
         """
-        Get the number of data points per snapshot in
-        the data set used to construct the DMD model.
+        Get the number of features in each snapshot.
 
         Returns
         -------
@@ -102,7 +99,7 @@ class DMDBase:
 
         Returns
         -------
-        ndarray (n_samples - 1,)
+        ndarray (n_snapshots - 1,)
         """
         return self._singular_values
 
@@ -299,8 +296,8 @@ class DMDBase:
         Returns
         -------
         float
-            The relative L2 error between the original snapshots
-            and the reconstructed snapshots with the DMD model.
+            The relative L2 error between the training snapshots
+            and the reconstructed snapshots.
         """
         X = self.snapshots
         X_pred = self.reconstructed_data.real
@@ -487,13 +484,21 @@ class DMDBase:
         This method computes the error decay as a function
         of truncation level.
 
+        Parameters
+        ----------
+        skip : int, default 1
+            Interval to use when varying number of modes.
+        end : int, default None
+            The largest number of modes to compute the reconstruction
+            error for. If None, the last mode will be the last one.
+
         Returns
         -------
         ndarray (n_modes,)
             The reproduction error as a function of n_modes.
         """
         X, tinfo = self.snapshots, self.original_time
-        svd_rank_original: int = self.svd_rank
+        svd_rank_original = self.svd_rank
         if end is None or end > min(X.shape) - 1:
             end = min(X.shape) - 1
 
@@ -502,21 +507,20 @@ class DMDBase:
         for n in range(0, end, skip):
             self.svd_rank = n + 1
             self.fit(X, verbose=False)
-            X_pred = self.reconstructed_data.real
-            error = norm(X - X_pred) / norm(X)
+            error = self.reconstruction_error.real
             errors.append(error)
             n_modes.append(n)
 
         self.svd_rank = svd_rank_original
         self.fit(X, verbose=False)
-        return np.array(errors), np.array(n_modes)
+        return errors, n_modes
 
     def get_params(self) -> dict:
         return {"svd_rank": self.svd_rank, "exact": self.exact,
                 "opt": self.opt, "ordering": self.ordering}
 
     @staticmethod
-    def validate_data(X: ndarray) -> Tuple[ndarray, tuple]:
+    def _validate_data(X: ndarray) -> Tuple[ndarray, tuple]:
         """
         Parameters
         ----------

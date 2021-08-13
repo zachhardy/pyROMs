@@ -19,7 +19,7 @@ class DMD(DMDBase):
         X : ndarray (n_snapshots, n_features)
             A matrix of snapshots stored row-wise.
         """
-        X, X_shape = self.validate_data(X)
+        X, X_shape = self._validate_data(X)
 
         # ======================================== Save the input data
         self._snapshots: ndarray = np.copy(X)
@@ -53,19 +53,18 @@ class DMD(DMDBase):
 
         # ======================================== Print summary
         if verbose:
-            print('\n*** DMD model information ***')
+            print("\n*** DMD model information ***")
 
             n = self.n_modes
-            print(f'Number of Modes:\t\t{n}')
+            print(f"Number of Modes:\t\t{n}")
 
             s = self._singular_values
-            print(f'Smallest Kept Singular Value:\t{s[n - 1] / sum(s):.3e}')
+            print(f"Smallest Kept Singular Value:\t{s[n - 1] / sum(s):.3e}")
 
             ic = self.snapshots[0]
             fit = (self.modes @ self.amplitudes).ravel()
             ic_error = norm(ic - fit) / norm(ic)
-            print(f'Initial Condition Error:\t{ic_error:.3e}')
+            print(f"Initial Condition Error:\t{ic_error:.3e}")
 
             error = self.reconstruction_error
-            print(f'Reconstruction Error:\t\t{error:.3e}\n')
-        return self
+            print(f"Reconstruction Error:\t\t{error:.3e}\n")

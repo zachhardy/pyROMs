@@ -1,55 +1,72 @@
 import numpy as np
-import matplotlib.pyplot as plt
-
 from numpy import ndarray
+from os.path import splitext
+import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.axes import Axes
-from typing import TYPE_CHECKING
+
+from typing import Union, List, TYPE_CHECKING
+
 if TYPE_CHECKING:
     from .pod_base import PODBase
 
 
-def plot_singular_values(self: 'PODBase',
-                         logscale: bool = True) -> None:
+def plot_singular_values(
+        self: 'PODBase', normalized: bool = True,
+        logscale: bool = True,
+        filename: str = None) -> None:
     """
     Plot the singular value spectrum.
 
     Parameters
     ----------
+    normalized : bool, default True
+        If True, the singular values are normalized by
+        the sum of all singular values.
     logscale : bool, default False
-        Flag for plotting on a linear or log scale y-axis.
+        If True, the plot will have a logarithmic y-axis.
+    filename : str, default None
+        If specified, the location to save the plot.
     """
-    s = self._singular_values
-    data = s / sum(s)
+    spectrum = self.singular_values
+    if normalized:
+        spectrum /= sum(spectrum)
 
-    fig: Figure = plt.figure()
-    ax: Axes = fig.add_subplot(111)
-    ax.set_xlabel('Singular Value #', fontsize=12)
-    ax.set_ylabel(r'$\sigma / \sum{{\sigma}}$', fontsize=12)
+    plt.figure()
+    plt.xlabel("Singular Value #")
+    plt.ylabel(r"$\sigma / \sum{{\sigma}}$")
     plotter = plt.semilogy if logscale else plt.plot
-    plotter(data, 'b-*', label='Singular Values')
-    ax.axvline(self.n_modes - 1, color='r',
-               ymin=1e-12, ymax=1.0 - 1.0e-12)
-    ax.legend()
-    ax.grid(True)
+    plotter(spectrum, "b-*", label="Singular Values")
+    plt.axvline(self.n_modes - 1, color="r",
+                ymin=1e-12, ymax=1.0 - 1.0e-12)
+    plt.legend()
+    plt.grid(True)
     plt.tight_layout()
 
+    if filename is not None:
+        basename, ext = splitext(filename)
+        plt.savefig(basename + ".pdf")
 
-def plot_coefficients(self: 'PODBase', modes: ndarray = None,
-                      normalize: bool = False) -> None:
+
+def plot_coefficients(
+        self: 'PODBase', indices: List[int] = None,
+        normalize: bool = False,
+        filename: str = None) -> None:
     """
-    Plot the POD coefficients as a function of parameter.
+    Plot the POD coefficients as a function of parameter values.
 
     Parameters
     ----------
-    modes : int or List[int], default 0
+    indices : int or List[int], default None
         The mode indices to plot the coefficients for.
-        If an int, only that mode is plotted. If a list,
-        all modes with the supplied indices are plotted on the
-        same Axes.
+        If an int, only that mode is plotted. If a list, those
+        modes specified are plotted. If None, all modes are
+        plotted.
     normalize : bool, default False
         Flag to remove the mean and normalize by the standard
         deviation of each mode coefficient function.
+    filename : str, default None
+        If specified, the location to save the plot.
     """
     y = self.parameters
 
@@ -60,31 +77,38 @@ def plot_coefficients(self: 'PODBase', modes: ndarray = None,
         y, amplitudes = y[ind], self.amplitudes[ind]
 
         # Get modes to plot
-        if isinstance(modes, int):
-            modes = [modes]
-        elif isinstance(modes, list):
-            modes = [m for m in modes if m < self.n_modes]
+        if isinstance(indices, int):
+            indices = [indices]
+        elif isinstance(indices, list):
+            indices = [i for i in indices if i < self.n_modes]
         else:
-            modes = [m for m in range(self.n_modes)]
+            indices = [i for i in range(self.n_modes)]
 
         # Format amplitudes
         if normalize:
-            amplitudes = self.center_data(amplitudes)
+            amplitudes = self._center_data(amplitudes)
 
         # Plot plot modes
-        for m in modes:
+        for ind in indices:
             fig: Figure = plt.figure()
             ax: Axes = fig.add_subplot(111)
-            ax.set_xlabel('Parameter Value', fontsize=12)
-            ax.set_ylabel('POD Coefficient Value', fontsize=12)
-            ax.plot(y, amplitudes[:, m], '-*', label=f'Mode {m}')
+            ax.set_xlabel("Parameter Value")
+            ax.set_ylabel("POD Coefficient Value")
+            ax.plot(y, amplitudes[:, ind], "-*", label=f"Mode {ind}")
             plt.grid(True)
             plt.legend()
             plt.tight_layout()
 
+            if filename is not None:
+                basename, ext = splitext(filename)
+                plt.savefig(basename + f"_{ind}.pdf")
 
-def plot_reconstruction_errors(self: 'PODBase',
-                               logscale: bool = True) -> None:
+
+def plot_error_decay(
+        self: 'PODBase', skip: int = 1,
+        end: int = None,
+        logscale: bool = True,
+        filename: str = None) -> None:
     """
     Plot the reconstruction errors.
 
@@ -93,17 +117,17 @@ def plot_reconstruction_errors(self: 'PODBase',
     logscale : bool
         Flag for plotting on a linear or log scale y-axis.
     """
-    errors = self.compute_error_decay()
+    errors, n_modes = self.compute_error_decay(skip, end)
     s = self._singular_values
     spectrum = s / sum(s)
 
     fig: Figure = plt.figure()
     ax: Axes = fig.add_subplot(111)
-    ax.set_xlabel('# of Modes', fontsize=12)
-    ax.set_ylabel(r'Relative $\ell^2$ Error', fontsize=12)
+    ax.set_xlabel("# of Modes")
+    ax.set_ylabel(r"Relative $\ell^2$ Error")
     plotter = plt.semilogy if logscale else plt.plot
-    plotter(spectrum, 'b-*', label='Singular Values')
-    plotter(errors, 'r-*', label='Reconstruction Errors')
+    plotter(spectrum, "b-*", label="Singular Values")
+    plotter(n_modes, errors, "r-*", label="Reconstruction Errors")
     ax.legend()
     ax.grid(True)
     plt.tight_layout()

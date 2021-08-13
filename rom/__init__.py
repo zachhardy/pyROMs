@@ -1,2 +1,2 @@
 from .pod import POD
-from .dmd import DMD
+from .dmd import DMD, DMDBase

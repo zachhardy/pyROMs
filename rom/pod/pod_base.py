@@ -3,7 +3,7 @@ from numpy import ndarray
 from numpy.linalg import norm
 import matplotlib.pyplot as plt
 
-from typing import Union, Tuple
+from typing import Union, Tuple, List
 
 Rank = Union[float, int]
 Dataset = Tuple[ndarray, ndarray]
@@ -25,7 +25,7 @@ class PODBase:
 
     from ._plotting import (plot_singular_values,
                             plot_coefficients,
-                            plot_reconstruction_errors)
+                            plot_error_decay)
 
     def __init__(self, svd_rank: Rank = -1) -> None:
         self.svd_rank: Rank = svd_rank
@@ -53,7 +53,7 @@ class PODBase:
     @property
     def n_snapshots(self) -> int:
         """
-        Get the number of snapshots provided to the model.
+        Get the number of snapshots in the training data.
 
         Returns
         -------
@@ -95,15 +95,26 @@ class PODBase:
         return self.parameters.shape[1]
 
     @property
+    def singular_values(self) -> ndarray:
+        """
+        Get the singular values associated with the POD modes.
+
+        Returns
+        -------
+        ndarray (n_snapshots,)
+        """
+        return self._singular_values
+
+    @property
     def modes(self) -> ndarray:
         """
         Get the POD modes, stored column-wise.
 
         Returns
         -------
-        ndarray (n_featurs, n_modes)
+        ndarray (n_features, n_modes)
         """
-        return self._modes[:, :self.n_modes]
+        return self._modes
 
     @property
     def n_modes(self) -> int:
@@ -114,7 +125,7 @@ class PODBase:
         -------
         int
         """
-        return self._n_modes
+        return self.modes.shape[1]
 
     @property
     def amplitudes(self) -> ndarray:
@@ -128,17 +139,6 @@ class PODBase:
         return self._b[:, :self.n_modes]
 
     @property
-    def singular_values(self) -> ndarray:
-        """
-        Get the singular values of the POD modes.
-
-        Returns
-        -------
-        ndarray (n_snapshots,)
-        """
-        return self._singular_values
-
-    @property
     def reconstructed_data(self) -> ndarray:
         """
         Get the reconstructed training data using the model.
@@ -150,77 +150,93 @@ class PODBase:
         """
         return self.amplitudes @ self.modes.T
 
+    @property
+    def reconstruction_error(self) -> float:
+        """
+        Compute the training data reconstruction error.
+
+        Returns
+        -------
+        float
+            The relative L2 error between the training snapshots
+            and the reconstructed snapshots.
+        """
+        X = self.snapshots
+        X_pred = self.reconstructed_data
+        return norm(X - X_pred) / norm(X)
+
     def fit(self, X: ndarray, Y: ndarray = None) -> None:
         raise NotImplementedError(
             f'Subclasses must implement abstact method '
             f'{self.__class__.__name__}.fit')
 
-    def compute_rank(self, svd_rank: Rank) -> int:
+    def _compute_svd(self, X: ndarray, svd_rank: Rank = None) -> int:
         """
-        Compute the SVD rank to use.
+        Compute the singular value decomposition of X truncating
+        based on the provided rank.
 
         Parameters
         ----------
-        svd_rank : int
+        svd_rank : int, default None
             The energy content to retain, or the fixed number
-            of POD modes to use.
+            of POD modes to use. If None, the value stored in
+            this object will be used.
         """
-        X, s = self.snapshots, self.singular_values
+        U, s, Vh = np.linalg.svd(X, full_matrices=False)
+        self._singular_values = s
+        V = Vh.conj().T
+
+        if svd_rank is None:
+            svd_rank = self.svd_rank
+
         if 0.0 < svd_rank < 1.0:
-            cumulative_energy = np.cumsum(s / sum(s))
+            cumulative_energy = np.cumsum(s ** 2 / sum(s ** 2))
             rank = np.searchsorted(cumulative_energy, svd_rank) + 1
         elif isinstance(svd_rank, int) and svd_rank >= 1:
-            rank = min(svd_rank, min(X.shape) - 1)
+            rank = min(svd_rank, min(X.shape))
         else:
-            rank = min(X.shape) - 1
-        return rank
+            rank = X.shape[1]
+        return U[:, :rank], s[:rank], V[:, :rank]
 
-    def reconstruction_error(self) -> float:
-        """
-        Get the l2 error in the reconstructed training data using
-        the truncated model.
-
-        Returns
-        -------
-        float
-        """
-        X = self.snapshots
-        X_pred = self.reconstructed_data
-        return norm(X - X_pred)
-
-    def untruncated_reconstruction_error(self) -> float:
-        """
-        Get the l2 error in the reconstructed training data using
-        an untruncated model.
-
-        Returns
-        -------
-        float
-        """
-        X = self.snapshots
-        X_pred = X @ self._modes @ self._modes.T
-        return norm(X - X_pred)
-
-    def compute_error_decay(self) -> ndarray:
+    def compute_error_decay(self, skip: int = 1,
+                            end: int = None) -> ndarray:
         """
         Compute the decay in the error. This method computes the
         error decay as a function number of modes included in the
         model.
 
+        Parameters
+        ----------
+        skip : int, default 1
+            Interval to use when varying number of modes.
+        end : int, default None
+            The largest number of modes to compute the reconstruction
+            error for. If None, the last mode will be the last one.
+
         Returns
         -------
         ndarray (n_modes,)
         """
-        errors = []
-        X = self.snapshots
-        for n in range(self.n_snapshots):
-            X_pred = X @ self._modes[:, :n] @ self._modes.T[:n]
-            err = norm(X - X_pred) / norm(X)
-            errors.append(err)
-        return np.array(errors)
+        X, Y = self.snapshots, self.parameters
+        svd_rank_original = self.svd_rank
+        if end is None or end > min(X.shape) - 1:
+            end = min(X.shape) - 1
+
+        errors: List[float] = []
+        n_modes: List[int] = []
+        for n in range(0, end, skip):
+            self.svd_rank = n + 1
+            self.fit(X, Y)
+            error = self.reconstruction_error.real
+            errors.append(error)
+            n_modes.append(n)
+
+        self.svd_rank = svd_rank_original
+        self.fit(X, Y)
+        return errors, n_modes
 
     @staticmethod
-    def center_data(data: ndarray) -> ndarray:
+    def _center_data(data: ndarray) -> ndarray:
         """
         Center the data by removing the mean and scaling
         by the standard deviation row-wise.

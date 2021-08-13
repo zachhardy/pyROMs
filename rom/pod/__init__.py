@@ -1,3 +1,3 @@
-from .pod import POD
+from .pod import POD, PODBase
 
-__all__ = ['POD']
+__all__ = ['POD', 'PODBase']

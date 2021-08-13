@@ -1,3 +1,3 @@
-from .dmd import DMD
+from .dmd import DMD, DMDBase
 
-__all__ = ['DMD']
+__all__ = ['DMD', 'DMDBase']

@@ -20,7 +20,8 @@ class POD(PODBase):
     """
     Principal Orthogonal Decomposition class.
     """
-    def fit(self, X: ndarray, Y: ndarray = None) -> None:
+    def fit(self, X: ndarray, Y: ndarray = None,
+            verbose: bool = False) -> None:
         """
         Compute the principal orthogonal decomposition
         of the inupt data.
@@ -31,25 +32,35 @@ class POD(PODBase):
             The training snapshots stored row-wise.
         Y : ndarray (n_snapshots, n_parameters), default None
             The training parameters stored row-wise.
-
+        verbose : bool, default False
         """
         X, Y = self._validate_data(X, Y)
 
-        # Save the input data
+        # ======================================== Save the input data
         self._snapshots = np.copy(X)
         self._parameters = np.copy(Y)
 
-        # Perform the SVD
-        U, s, V = np.linalg.svd(X.T, full_matrices=False)
-        self._modes = U  # shape = (n_features, n_snapshots)
-        self._singular_values = s
+        # ======================================== Perform the SVD
+        U, s, V = self._compute_svd(X.T, self.svd_rank)
+        self._modes = U
 
-        # Deterine the number of modes
-        self._n_modes = self.compute_rank(self.svd_rank)
-
-        # Compute coefficients
+        # ======================================== Compute amplitudes
         self._b = self.transform(X)
-        return self
+
+
+        # ======================================== Print summary
+        if verbose:
+            print("\n*** POD model information ***")
+
+            n = self.n_modes
+            print(f"Number of Modes:\t\t{n}")
+
+            s = self._singular_values
+            print(f"Smallest Kept Singular Value:\t{s[n - 1] / sum(s):.3e}")
+
+            error = self.reconstruction_error.real
+            print(f"Reconstruction Error:\t\t{error:.3e}\n")
+
 
     def transform(self, X: ndarray) -> ndarray:
         """
@@ -93,9 +104,8 @@ class POD(PODBase):
             the query parameters.
         """
         if Y.shape[1] != self.n_parameters:
-            raise ValueError('Y must have the same number of '
-                             'parameters as the training data.')
-
+            raise ValueError("Y must have the same number of "
+                             "parameters as the training data.")
         amplitudes = self.interpolate(Y, method)
         return amplitudes @ self.modes.T
 
