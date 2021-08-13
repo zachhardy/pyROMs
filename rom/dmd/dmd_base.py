@@ -494,8 +494,11 @@ class DMDBase:
 
         Returns
         -------
-        ndarray (n_modes,)
+        ndarray
             The reproduction error as a function of n_modes.
+        ndarray
+            The corresponding number of modes to each entry of
+            the error vector.
         """
         X, tinfo = self.snapshots, self.original_time
         svd_rank_original = self.svd_rank

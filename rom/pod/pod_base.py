@@ -215,7 +215,11 @@ class PODBase:
 
         Returns
         -------
-        ndarray (n_modes,)
+        ndarray
+            The reproduction error as a function of n_modes.
+        ndarray
+            The corresponding number of modes to each entry of
+            the error vector.
         """
         X, Y = self.snapshots, self.parameters
         svd_rank_original = self.svd_rank
