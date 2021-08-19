@@ -9,7 +9,7 @@ class DMD(DMDBase):
     """Traditional dynamic mode decomposition model.
     """
 
-    def fit(self, X: ndarray, timestamps: ndarray = None,
+    def fit(self, X: ndarray, times: ndarray = None,
             verbose: bool = True) -> None:
         """Fit the model to the provided data.
 
@@ -18,7 +18,7 @@ class DMD(DMDBase):
         X : ndarray (n_snapshots, n_features)
             A matrix of snapshots stored row-wise.
             
-        timestamps : ndarray (n_snapshots,), default None
+        times : ndarray (n_snapshots,), default None
             The timestamps corresponding to each snapshot in X.
 
         verbose : bool, default True
@@ -34,7 +34,7 @@ class DMD(DMDBase):
         X1 = self._snapshots[1:].T
 
         # ======================================== Compute the SVD
-        U, s, V = self._compute_svd(X0)
+        U, s, V = self._compute_svd(X0, self.svd_rank)
 
         # ======================================== Low-rank operator
         self._a_tilde = self._construct_atilde(U, s, V, X1)
@@ -44,10 +44,10 @@ class DMD(DMDBase):
         self._modes = self._compute_modes(U, s, V, X1)
 
         # ======================================== Set default time steps
-        if timestamps is None:
-            timestamps = [i for i in range(self.n_snapshots)]
-        self.original_timestamps = np.array(timestamps)
-        self.dmd_timestamps = self.original_timestamps
+        if times is None:
+            times = [i for i in range(self.n_snapshots)]
+        self.original_timesteps = np.array(times)
+        self.dmd_timesteps = self.original_timesteps
 
         # ======================================== Compute amplitudes
         self._b = self._compute_amplitudes()

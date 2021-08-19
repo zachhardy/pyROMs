@@ -66,8 +66,8 @@ class DMDBase:
         self.opt: bool = opt
         self.ordering: str = ordering
 
-        self.original_timestamps: ndarray = None
-        self.dmd_timestamps: ndarray = None
+        self.original_timesteps: ndarray = None
+        self.dmd_timesteps: ndarray = None
 
         self._snapshots: ndarray = None
         self._snapshots_shape: tuple = None
@@ -160,8 +160,8 @@ class DMDBase:
             The dynamics matrix, where each row contains the
             corresponding modes's weighting for the given time step.
         """
-        t0 = self.original_timestamps[0]
-        exp_arg = np.outer(self.omegas, self.dmd_timestamps - t0)
+        t0 = self.original_timesteps[0]
+        exp_arg = np.outer(self.omegas, self.dmd_timesteps - t0)
         return np.exp(exp_arg) * self._b[:, None]
 
     @property
@@ -187,7 +187,7 @@ class DMDBase:
             low-rank operator using the fixed time step size of
             the snapshots.
         """
-        dt = np.diff(self.original_timestamps)[0]
+        dt = np.diff(self.original_timesteps)[0]
         return np.log(self.eigs, dtype=complex) / dt
 
     @property
@@ -375,7 +375,7 @@ class DMDBase:
             The dynamic mode amplitudes.
         """
         if self.opt:
-            meshgrid = np.meshgrid(self.omegas, self.dmd_timestamps)
+            meshgrid = np.meshgrid(self.omegas, self.dmd_timesteps)
             vander = np.exp(np.multiply(*meshgrid)).T
 
             U, s, Vh = np.linalg.svd(self._snapshots.T, full_matrices=False)
@@ -393,7 +393,8 @@ class DMDBase:
             return np.linalg.lstsq(self.modes, x0, rcond=None)[0]
 
     def sort_modes(self) -> None:
-        """Sort the modes based on the specified criteria."""
+        """Sort the modes based on the specified criteria.
+        """
         if self.ordering is None:
             return
         if self.ordering not in ["AMPLITUDE", "EIGENVALUE"]:
@@ -412,7 +413,8 @@ class DMDBase:
         self._b = self._b[ind]
 
     def remove_unstable_modes(self) -> None:
-        """Remove modes whose eigenvalues are unstable."""
+        """Remove modes whose eigenvalues are unstable.
+        """
         stable_mask = np.abs(self.eigs.real) < 1.0
         n_unstable = sum([1 for val in stable_mask if not val])
         if n_unstable > 1:
@@ -461,7 +463,7 @@ class DMDBase:
             The corresponding number of modes to each entry of
             the error vector.
         """
-        X, times = self.snapshots, self.original_timestamps
+        X, times = self.snapshots, self.original_timesteps
         svd_rank_original = self.svd_rank
         if end is None or end > min(X.shape) - 1:
             end = min(X.shape) - 1
@@ -476,7 +478,7 @@ class DMDBase:
             n_modes.append(n)
 
         self.svd_rank = svd_rank_original
-        self.fit(X, verbose=False)
+        self.fit(X, times, verbose=False)
         return errors, n_modes
 
     def get_params(self) -> dict:
