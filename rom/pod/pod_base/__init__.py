@@ -1,33 +1,34 @@
 import numpy as np
 from numpy import ndarray
 from numpy.linalg import norm
-import matplotlib.pyplot as plt
 
 from typing import Union, Tuple, List
 
 Rank = Union[float, int]
 Dataset = Tuple[ndarray, ndarray]
+SVD = Tuple[ndarray, ndarray, ndarray]
 
 
 class PODBase:
-    """
-    Principal Orthogonal Decomposition base class.
-
-    Parameters
-    ----------
-    svd_rank : int or float, default -1
-        The SVD truncation rank. If -1, no truncation is used.
-        If a positive integer, the truncation rank is the argument.
-        If a float between 0 and 1, the minimum number of modes
-        needed to obtain an information content greater than the
-        argument is used.
+    """Principal Orthogonal Decomposition base class.
     """
 
     from ._plotting import (plot_singular_values,
+                            plot_1D_modes,
                             plot_coefficients,
                             plot_error_decay)
 
     def __init__(self, svd_rank: Rank = -1) -> None:
+        """
+        Parameters
+        ----------
+        svd_rank : int or float, default -1
+            The SVD truncation rank. If -1, no truncation is used.
+            If a positive integer, the truncation rank is the argument.
+            If a float between 0 and 1, the minimum number of modes
+            needed to obtain an information content greater than the
+            argument is used.
+        """
         self.svd_rank: Rank = svd_rank
 
         self._snapshots: ndarray = None
@@ -41,8 +42,7 @@ class PODBase:
 
     @property
     def snapshots(self) -> ndarray:
-        """
-        Get the original training data.
+        """Get the original training data.
 
         Returns
         -------
@@ -52,8 +52,7 @@ class PODBase:
 
     @property
     def n_snapshots(self) -> int:
-        """
-        Get the number of snapshots in the training data.
+        """Get the number of snapshots.
 
         Returns
         -------
@@ -63,8 +62,7 @@ class PODBase:
 
     @property
     def n_features(self) -> int:
-        """
-        Get the number of features in each snapshot.
+        """Get the number of features in each snapshot.
 
         Returns
         -------
@@ -74,8 +72,7 @@ class PODBase:
 
     @property
     def parameters(self) -> ndarray:
-        """
-        Get the original training parameters.
+        """Get the original training parameters.
 
         Returns
         -------
@@ -85,8 +82,7 @@ class PODBase:
 
     @property
     def n_parameters(self) -> int:
-        """
-        Get the number of parameters that describe a snapshot.
+        """Get the number of parameters that describe a snapshot.
 
         Returns
         -------
@@ -96,8 +92,7 @@ class PODBase:
 
     @property
     def singular_values(self) -> ndarray:
-        """
-        Get the singular values associated with the POD modes.
+        """Get the singular values.
 
         Returns
         -------
@@ -107,8 +102,7 @@ class PODBase:
 
     @property
     def modes(self) -> ndarray:
-        """
-        Get the POD modes, stored column-wise.
+        """Get the modes, stored column-wise.
 
         Returns
         -------
@@ -118,8 +112,7 @@ class PODBase:
 
     @property
     def n_modes(self) -> int:
-        """
-        Get the number of modes.
+        """Get the number of modes.
 
         Returns
         -------
@@ -129,8 +122,7 @@ class PODBase:
 
     @property
     def amplitudes(self) -> ndarray:
-        """
-        Get the POD mode amplitudes that define the training data.
+        """Get the mode amplitudes per snapshot.
 
         Returns
         -------
@@ -140,8 +132,7 @@ class PODBase:
 
     @property
     def reconstructed_data(self) -> ndarray:
-        """
-        Get the reconstructed training data using the model.
+        """Get the reconstructed training data.
 
         Returns
         -------
@@ -152,8 +143,7 @@ class PODBase:
 
     @property
     def reconstruction_error(self) -> float:
-        """
-        Compute the training data reconstruction error.
+        """Compute the training data reconstruction error.
 
         Returns
         -------
@@ -170,17 +160,13 @@ class PODBase:
             f'Subclasses must implement abstact method '
             f'{self.__class__.__name__}.fit')
 
-    def _compute_svd(self, X: ndarray, svd_rank: Rank = None) -> int:
-        """
-        Compute the singular value decomposition of X truncating
-        based on the provided rank.
+    def _compute_svd(self, X: ndarray, svd_rank: Rank = -1) -> SVD:
+        """Compute the truncated singular value decomposition of X
 
         Parameters
         ----------
-        svd_rank : int, default None
-            The energy content to retain, or the fixed number
-            of POD modes to use. If None, the value stored in
-            this object will be used.
+        X : ndarray
+        svd_rank : int, default -1
         """
         U, s, Vh = np.linalg.svd(X, full_matrices=False)
         self._singular_values = s
@@ -199,11 +185,11 @@ class PODBase:
         return U[:, :rank], s[:rank], V[:, :rank]
 
     def compute_error_decay(self, skip: int = 1,
-                            end: int = None) -> ndarray:
-        """
-        Compute the decay in the error. This method computes the
-        error decay as a function number of modes included in the
-        model.
+                            end: int = None) -> Tuple[List[float], List[int]]:
+        """Compute the decay in the error.
+
+        This method computes the  error decay as a function
+        of number of modes included in the model.
 
         Parameters
         ----------
@@ -241,9 +227,10 @@ class PODBase:
 
     @staticmethod
     def _center_data(data: ndarray) -> ndarray:
-        """
-        Center the data by removing the mean and scaling
-        by the standard deviation row-wise.
+        """Center the data.
+
+        This removes the mean and scales by the standard
+        deviation row-wise.
 
         Parameters
         ----------
@@ -264,8 +251,7 @@ class PODBase:
 
     @staticmethod
     def _validate_data(X: ndarray, Y: ndarray = None) -> Dataset:
-        """
-        Validate training data.
+        """Validate training data.
 
         Parameters
         ----------

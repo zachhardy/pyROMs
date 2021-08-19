@@ -6,18 +6,22 @@ from .dmd_base import DMDBase
 
 
 class DMD(DMDBase):
-    """
-    Dynamic mode decomposition model.
+    """Traditional dynamic mode decomposition model.
     """
 
-    def fit(self, X: ndarray, verbose: bool = True) -> None:
-        """
-        Fit the DMD model to the provided data.
+    def fit(self, X: ndarray, timestamps: ndarray = None,
+            verbose: bool = True) -> None:
+        """Fit the model to the provided data.
 
         Parameters
         ----------
         X : ndarray (n_snapshots, n_features)
             A matrix of snapshots stored row-wise.
+            
+        timestamps : ndarray (n_snapshots,), default None
+            The timestamps corresponding to each snapshot in X.
+
+        verbose : bool, default True
         """
         X, X_shape = self._validate_data(X)
 
@@ -40,16 +44,17 @@ class DMD(DMDBase):
         self._modes = self._compute_modes(U, s, V, X1)
 
         # ======================================== Set default time steps
-        n = self.n_snapshots
-        self.original_time = {'t0': 0, 'tf': n - 1, 'dt': 1}
-        self.dmd_time = {'t0': 0, 'tf': n - 1, 'dt': 1}
+        if timestamps is None:
+            timestamps = [i for i in range(self.n_snapshots)]
+        self.original_timestamps = np.array(timestamps)
+        self.dmd_timestamps = self.original_timestamps
 
         # ======================================== Compute amplitudes
         self._b = self._compute_amplitudes()
 
         # ======================================== Sort and filter modes
         self.sort_modes()
-        self.filter_out_unstable_modes()
+        self.remove_unstable_modes()
 
         # ======================================== Print summary
         if verbose:

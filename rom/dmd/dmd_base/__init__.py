@@ -7,24 +7,38 @@ from typing import Union, Tuple, List
 
 Rank = Union[float, int]
 Eig = Tuple[ndarray, ndarray]
+SVD = Tuple[ndarray, ndarray, ndarray]
 
 
 class DMDBase:
-    """
-    Dynamic Mode Decomposition base class.
+    """Dynamic Mode Decomposition base class.
 
-    Parameters
+    Attributes
     ----------
-    svd_rank : int or float, default -1
+    svd_rank : float or int
         The SVD truncation rank. If -1, no truncation is used.
         If a positive integer, the truncation rank is the argument.
         If a float between 0 and 1, the minimum number of modes
         needed to obtain an information content greater than the
         argument is used.
-    exact : bool, default False
+
+    exact : bool
         Flag for exact modes. If False, projected modes are used.
-    ordering : 'AMPLITUDE' or 'EIGENVALUE', default 'AMPLITUDE'
-        The sorting method applied to the dynamic modes.
+
+    opt : bool, default False
+            Flag for optimal mode amplitudes. If False, the modes are
+            fit to the initial condition.
+
+    ordering : {"AMPLITUDE", "EIGENVALUE"}
+            The sorting method applied to the dynamic modes.
+
+    original_timestamps : ndarray (n_snapshots,)
+        The timestamps corresponding to each snapshot in the
+        training data.
+
+    dmd_timestamps : ndarray
+        The timestamps to sample the model at. This is defaulted
+        to the same timestamps as the original ones.
     """
 
     from ._plotting import (plot_singular_values,
@@ -37,15 +51,23 @@ class DMDBase:
                             plot_error_decay)
 
     def __init__(self, svd_rank: Rank = -1, exact: bool = False,
-                 opt: bool = True, ordering: str = "AMPLITUDE") -> None:
+                 opt: bool = False, ordering: str = "AMPLITUDE") -> None:
+        """Constructor.
+
+        Parameters
+        ----------
+        svd_rank : int or float, default -1
+        exact : bool, default False
+        opt : bool, default False
+        ordering : {"AMPLITUDE", "EIGENVALUE"}, default "AMPLITUDE"
+        """
         self.svd_rank: Rank = svd_rank
         self.exact: bool = exact
         self.opt: bool = opt
         self.ordering: str = ordering
-        self.initialized: bool = False
 
-        self.original_time: dict = None
-        self.dmd_time: dict = None
+        self.original_timestamps: ndarray = None
+        self.dmd_timestamps: ndarray = None
 
         self._snapshots: ndarray = None
         self._snapshots_shape: tuple = None
@@ -60,8 +82,7 @@ class DMDBase:
 
     @property
     def snapshots(self) -> ndarray:
-        """
-        Get the original training data.
+        """Get the original training data.
 
         Returns
         -------
@@ -71,8 +92,7 @@ class DMDBase:
 
     @property
     def n_snapshots(self) -> int:
-        """
-        Get the number of snapshots in the training data.
+        """Get the number of snapshots in the training data.
 
         Returns
         -------
@@ -82,8 +102,7 @@ class DMDBase:
 
     @property
     def n_features(self) -> int:
-        """
-        Get the number of features in each snapshot.
+        """Get the number of features in each snapshot.
 
         Returns
         -------
@@ -93,9 +112,7 @@ class DMDBase:
 
     @property
     def singular_values(self) -> ndarray:
-        """
-        Get the singular values of the data set containing
-        snapshot 0 through the next to last snapshot.
+        """Get the singular values.
 
         Returns
         -------
@@ -105,8 +122,7 @@ class DMDBase:
 
     @property
     def a_tilde(self) -> ndarray:
-        """
-        Get the low-rank evolution operator.
+        """Get the low-rank evolution operator.
 
         Returns
         -------
@@ -116,8 +132,7 @@ class DMDBase:
 
     @property
     def modes(self) -> ndarray:
-        """
-        Get the DMD modes, stored column-wise.
+        """Get the modes, stored column-wise.
 
         Returns
         -------
@@ -127,8 +142,7 @@ class DMDBase:
 
     @property
     def n_modes(self) -> int:
-        """
-        Get the number of DMD modes.
+        """Get the number of modes.
 
         Returns
         -------
@@ -138,25 +152,21 @@ class DMDBase:
 
     @property
     def dynamics(self) -> ndarray:
-        """
-        Compute the dynamics operator from the fitted
-        DMD model.
+        """Compute the dynamics operator.
 
         Returns
         -------
         ndarray (n_modes, n_snapshots)
             The dynamics matrix, where each row contains the
-            corresponding DMD modes's weighting for the
-            given time step.
+            corresponding modes's weighting for the given time step.
         """
-        t0 = self.original_time['t0']
-        exp_arg = np.outer(self.omegas, self.dmd_timesteps - t0)
+        t0 = self.original_timestamps[0]
+        exp_arg = np.outer(self.omegas, self.dmd_timestamps - t0)
         return np.exp(exp_arg) * self._b[:, None]
 
     @property
     def eigs(self) -> ndarray:
-        """
-        Get the discrete eigenvalues of the evolution operator.
+        """Get the discrete eigenvalues.
 
         Returns
         -------
@@ -168,8 +178,7 @@ class DMDBase:
 
     @property
     def omegas(self) -> ndarray:
-        """
-        Get the continuous eigenvalues of the evolution operator.
+        """Get the continuous eigenvalues.
 
         Returns
         -------
@@ -178,27 +187,12 @@ class DMDBase:
             low-rank operator using the fixed time step size of
             the snapshots.
         """
-        return np.log(self.eigs, dtype=complex) / self.original_time['dt']
-
-    @property
-    def growth_rate(self) -> ndarray:
-        """
-        Get the temporal growth rates of the eigenvalues of the
-        evolution operator.
-
-        Returns
-        -------
-        ndarray (n_modes,)
-            The real part of the exponential coefficients that
-            govern each DMD mode.
-        """
-        return self.omegas.real
+        dt = np.diff(self.original_timestamps)[0]
+        return np.log(self.eigs, dtype=complex) / dt
 
     @property
     def eigvecs(self) -> ndarray:
-        """
-        Get the low-rank eigenvectors of \tilde{A}, stored
-        column-wise.
+        """Get the low-rank eigenvectors.
 
         Returns
         -------
@@ -207,65 +201,44 @@ class DMDBase:
         return self._eigvecs
 
     @property
+    def growth_rate(self) -> ndarray:
+        """Get the temporal growth rates of the eigenvalues.
+
+        Returns
+        -------
+        ndarray (n_modes,)
+            The real part of the exponential coefficients that
+            govern each mode.
+        """
+        return self.omegas.real
+
+    @property
     def frequency(self) -> ndarray:
-        r"""
-        Get the temporal frequencies of the eigenvalues of the
-        evolution operator.
+        r"""Get the temporal frequencies of the eigenvalues.
 
         Returns
         -------
         ndarray (n_modes,)
             The imaginary part of the exponential coefficients
-            that govern each DMD mode scaled by (2 * \pi)^{-1}
+            that govern each mode scaled by 1 / 2 \pi.
         """
         return self.omegas.imag / 2.0 / np.pi
 
     @property
     def amplitudes(self) -> ndarray:
-        """
-        Get the amplitudes of the DMD modes.
+        """Get the mode amplitudes.
 
         Returns
         -------
         ndarray (n_modes,)
-            The coefficients of each DMD mode that minimize
-            the error between the DMD model and the data set.
+            The coefficients of each mode that minimize
+            the error between the model and the data set.
         """
         return self._b
 
     @property
-    def original_timesteps(self) -> ndarray:
-        """
-        Get the original time steps.
-
-        Returns
-        -------
-        ndarray (n_snapshots,)
-        """
-        times = np.arange(
-            self.original_time['t0'],
-            self.original_time['tf'] + self.original_time['dt'],
-            self.original_time['dt'])
-        return times[[t <= self.original_time['tf'] for t in times]]
-
-    @property
-    def dmd_timesteps(self) -> ndarray:
-        """
-        Get the timesteps to sample.
-
-        Returns
-        -------
-        ndarray (size varies)
-        """
-        times = np.arange(self.dmd_time['t0'],
-                          self.dmd_time['tf'] + self.dmd_time['dt'],
-                          self.dmd_time['dt'])
-        return times[[t <= self.dmd_time['tf'] for t in times]]
-
-    @property
     def operator(self) -> ndarray:
-        """
-        Construct the approximate full order evolution operator.
+        """The approximate full order evolution operator.
 
         Returns
         -------
@@ -278,20 +251,18 @@ class DMDBase:
 
     @property
     def reconstructed_data(self) -> ndarray:
-        """
-        Get the reconstructed training data.
+        """Get the reconstructed training data.
 
         Returns
         -------
         ndarray (n_snapshots, n_features)
-            The reconstructed data set from the DMD model.
+            The reconstructed data set from the model.
         """
         return (self.modes @ self.dynamics).T
 
     @property
     def reconstruction_error(self) -> float:
-        """
-        Compute the training data reconstruction error.
+        """Compute the training data reconstruction error.
 
         Returns
         -------
@@ -308,24 +279,17 @@ class DMDBase:
             f'Subclasses must implement abstact method '
             f'{self.__class__.__name__}.fit')
 
-    def _compute_svd(self, X: ndarray, svd_rank: Rank = None) -> int:
-        """
-        Compute the singular value decomposition of X truncating
-        based on the provided rank.
+    def _compute_svd(self, X: ndarray, svd_rank: Rank = -1) -> SVD:
+        """Compute the truncated singular value decomponsition of X
 
         Parameters
         ----------
-        svd_rank : int, default None
-            The energy content to retain, or the fixed number
-            of POD modes to use. If None, the value stored in
-            this object will be used.
+        X : ndarray
+        svd_rank : int, default -1
         """
         U, s, Vh = np.linalg.svd(X, full_matrices=False)
         self._singular_values = s
         V = Vh.conj().T
-
-        if svd_rank is None:
-            svd_rank = self.svd_rank
 
         if 0.0 < svd_rank < 1.0:
             cumulative_energy = np.cumsum(s ** 2 / sum(s ** 2))
@@ -339,9 +303,7 @@ class DMDBase:
     @staticmethod
     def _construct_atilde(U: ndarray, s: ndarray,
                           V: ndarray, Y: ndarray) -> ndarray:
-        """
-        Construct the low-rank operator from the SVD of X
-        and the matrix Y.
+        """Construct the low-rank evolution operator.
 
         Parameters
         ----------
@@ -364,9 +326,11 @@ class DMDBase:
 
     def _compute_modes(self, U: ndarray, s: ndarray,
                        V: ndarray, Y: ndarray) -> Eig:
-        """
-        Compute the eigendecomposition of the low-rank operator
-        and map the results to the full-order space.
+        """Compute the dynamic modes.
+
+        Compute the dynamic modes by taking the eigendecomposition
+        of the low-rank evolution operator and mapping the results
+        back to high-dimensional space.
 
         Parameters
         ----------
@@ -399,10 +363,11 @@ class DMDBase:
         return modes
 
     def _compute_amplitudes(self) -> ndarray:
-        """
-        Compute the amplitudes for the dynamic modes. This
-        method fits the modes to the first snapshot, which
-        is assumed to be the initial condition.
+        """Compute the amplitudes for the dynamic modes.
+
+        This method either fits the first snapshot, if opt is
+        false, or performs an optimal fit over the full data set,
+        if true.
 
         Returns
         -------
@@ -410,7 +375,7 @@ class DMDBase:
             The dynamic mode amplitudes.
         """
         if self.opt:
-            meshgrid = np.meshgrid(self.omegas, self.dmd_timesteps)
+            meshgrid = np.meshgrid(self.omegas, self.dmd_timestamps)
             vander = np.exp(np.multiply(*meshgrid)).T
 
             U, s, Vh = np.linalg.svd(self._snapshots.T, full_matrices=False)
@@ -428,10 +393,7 @@ class DMDBase:
             return np.linalg.lstsq(self.modes, x0, rcond=None)[0]
 
     def sort_modes(self) -> None:
-        """
-        Sort the dynamic modes based upon the specified criteria.
-        This method updates the ordering of the private attributes.
-        """
+        """Sort the modes based on the specified criteria."""
         if self.ordering is None:
             return
         if self.ordering not in ["AMPLITUDE", "EIGENVALUE"]:
@@ -449,7 +411,8 @@ class DMDBase:
         self._modes = self._modes[:, ind]
         self._b = self._b[ind]
 
-    def filter_out_unstable_modes(self) -> None:
+    def remove_unstable_modes(self) -> None:
+        """Remove modes whose eigenvalues are unstable."""
         stable_mask = np.abs(self.eigs.real) < 1.0
         n_unstable = sum([1 for val in stable_mask if not val])
         if n_unstable > 1:
@@ -461,8 +424,7 @@ class DMDBase:
         self._b = self.amplitudes.T[stable_mask].T
 
     def compute_timestep_errors(self) -> ndarray:
-        """
-        Compute the errors as a function time step.
+        """Compute the errors as a function time step.
 
         Returns
         -------
@@ -478,8 +440,7 @@ class DMDBase:
 
     def compute_error_decay(self, skip: int = 1,
                             end: int = None) -> ndarray:
-        """
-        Compute the decay in the error.
+        """Compute the decay in the error.
 
         This method computes the error decay as a function
         of truncation level.
@@ -500,7 +461,7 @@ class DMDBase:
             The corresponding number of modes to each entry of
             the error vector.
         """
-        X, tinfo = self.snapshots, self.original_time
+        X, times = self.snapshots, self.original_timestamps
         svd_rank_original = self.svd_rank
         if end is None or end > min(X.shape) - 1:
             end = min(X.shape) - 1
@@ -509,7 +470,7 @@ class DMDBase:
         n_modes: List[int] = []
         for n in range(0, end, skip):
             self.svd_rank = n + 1
-            self.fit(X, verbose=False)
+            self.fit(X, times, verbose=False)
             error = self.reconstruction_error.real
             errors.append(error)
             n_modes.append(n)
@@ -524,7 +485,8 @@ class DMDBase:
 
     @staticmethod
     def _validate_data(X: ndarray) -> Tuple[ndarray, tuple]:
-        """
+        """Ensure the input data is formatted correctly.
+
         Parameters
         ----------
         X : ndarray (n_snapshots, n_features)
