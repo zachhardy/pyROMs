@@ -59,7 +59,7 @@ class POD(PODBase):
             print(f"Smallest Kept Singular Value:\t{s[n - 1] / sum(s):.3e}")
 
             error = self.reconstruction_error.real
-            print(f"Reconstruction Error:\t\t{error:.3e}\n")
+            print(f"Reconstruction Error:\t\t{error:.3e}")
 
 
     def transform(self, X: ndarray) -> ndarray:
