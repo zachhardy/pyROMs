@@ -54,7 +54,6 @@ class DMD(DMDBase):
 
         # ======================================== Sort and filter modes
         self.sort_modes()
-        self.remove_unstable_modes()
 
         # ======================================== Print summary
         if verbose:
