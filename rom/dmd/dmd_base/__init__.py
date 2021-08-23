@@ -353,7 +353,8 @@ class DMDBase:
 
         """
         if self.exact:
-            modes = Y @ V * np.reciprocal(s) @ self._eigvecs
+            modes = Y @ V * np.reciprocal(s) \
+                    @ self._eigvecs * np.reciprocal(self._eigs)
         else:
             modes = U @ self._eigvecs
 
