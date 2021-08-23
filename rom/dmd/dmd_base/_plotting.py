@@ -462,7 +462,7 @@ def plot_timestep_errors(self: "DMDBase",
     filename : str, default None
         If specified, the location to save the plot.
     """
-    times = self.original_timestamps
+    times = self.original_timesteps
     errors = self.compute_timestep_errors()
 
     # Setup plot
