@@ -110,5 +110,5 @@ for i, n in enumerate(range(121, 123)):
 plt.tight_layout()
 
 path = os.path.dirname(os.path.realpath(__file__))
-plt.savefig(path + "/example1_dmd_pod_modes.pdf")
+plt.savefig(path + "/test1_dmd_pod_modes.pdf")
 plt.show()
