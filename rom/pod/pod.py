@@ -17,14 +17,12 @@ TestData = Union[float, ndarray]
 
 
 class POD(PODBase):
+    """Principal Orthogonal Decomposition class.
     """
-    Principal Orthogonal Decomposition class.
-    """
+
     def fit(self, X: ndarray, Y: ndarray = None,
             verbose: bool = False) -> None:
-        """
-        Compute the principal orthogonal decomposition
-        of the inupt data.
+        """Compute the POD of the inupt data.
 
         Parameters
         ----------
@@ -47,7 +45,6 @@ class POD(PODBase):
         # ======================================== Compute amplitudes
         self._b = self.transform(X)
 
-
         # ======================================== Print summary
         if verbose:
             print("\n*** POD model information ***")
@@ -61,10 +58,8 @@ class POD(PODBase):
             error = self.reconstruction_error.real
             print(f"Reconstruction Error:\t\t{error:.3e}")
 
-
     def transform(self, X: ndarray) -> ndarray:
-        """
-        Transform the data X to the low-rank space.
+        """Transform the data X to the low-rank space.
 
         Parameters
         ----------
@@ -77,24 +72,23 @@ class POD(PODBase):
             The low-rank representation of X.
         """
         if self.modes is None:
-            raise ValueError('Model must first be fit.')
+            raise ValueError("Model must first be fit.")
 
         if X.shape[1] != self.n_features:
-            raise AssertionError('The number of features in X and '
-                                 'the training data must agree.')
+            raise AssertionError(
+                "The number of features in X and the training "
+                "data must agree.")
         return X @ self.modes
 
-    def predict(self, Y: ndarray, method: str = 'cubic') -> ndarray:
-        """
-        Predict a full-order result given a set of parameters
-        using the provided interpolation method.
+    def predict(self, Y: ndarray, method: str = "CUBIC") -> ndarray:
+        """Predict a full-order result for a set of parameters.
 
         Parameters
         ----------
         Y : ndarray (n_snapshots, n_parameters)
             The query parameters.
-        method : str {'linear', 'cubic', 'gp'}, default 'cubic'
-            The interpolation method to use. 'gp' stands for
+        method : str {"LINEAR", "CUBIC", "GP"}, default "CUBIC"
+            The interpolation method to use. "GP" stands for
             Gaussian Processes.
 
         Returns
@@ -110,16 +104,14 @@ class POD(PODBase):
         return amplitudes @ self.modes.T
 
     def interpolate(self, Y: TestData, method: str) -> ndarray:
-        """
-        Interpolate POD mode amplitudes using the given method
-        for the given query parameters.
+        """Interpolate POD mode amplitudes.
 
         Parameters
         ----------
         Y : ndarray (n_snapshots, n_parameters)
             The query parameters.
-        method : str {'linear', 'cubic', 'gp'}, default 'cubic'
-            The interpolation method to use. 'gp' stands for
+        method : str {"LINEAR", "CUBIC", "GP"}, default "CUBIC"
+            The interpolation method to use. "GP" stands for
             Gaussian Processes.
 
         Returns
@@ -129,9 +121,9 @@ class POD(PODBase):
             the query parameters.
         """
         # Regular interpolation
-        if method in ['linear', 'cubic']:
+        if method in ["LINEAR", "CUBIC"]:
             args = (self.parameters, self.amplitudes, Y)
-            amplitudes = griddata(*args, method=method)
+            amplitudes = griddata(*args, method=method.lower())
 
         # Gaussian Process interpolation
         else:

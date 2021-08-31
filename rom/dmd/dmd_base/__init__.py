@@ -1,7 +1,7 @@
 import numpy as np
 from numpy import ndarray
 from numpy.linalg import norm
-from scipy.linalg import pinv
+from scipy.linalg import pinv, svd
 
 from typing import Union, Tuple, List
 
@@ -293,7 +293,7 @@ class DMDBase:
 
         if 0.0 < svd_rank < 1.0:
             cumulative_energy = np.cumsum(s ** 2 / sum(s ** 2))
-            rank = np.searchsorted(cumulative_energy, svd_rank) + 1
+            rank = np.searchsorted(cumulative_energy, svd_rank) + 2
         elif isinstance(svd_rank, int) and svd_rank >= 1:
             rank = min(svd_rank, min(X.shape))
         else:
