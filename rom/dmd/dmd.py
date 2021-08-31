@@ -25,37 +25,37 @@ class DMD(DMDBase):
         """
         X, X_shape = self._validate_data(X)
 
-        # ======================================== Save the input data
+        # Save the input data
         self._snapshots: ndarray = np.copy(X)
         self._snapshots_shape: tuple = X_shape
 
-        # ======================================== Split snapshots
+        # Split snapshots
         X0 = self._snapshots[:-1].T
         X1 = self._snapshots[1:].T
 
-        # ======================================== Compute the SVD
+        # Compute the SVD
         U, s, V = self._compute_svd(X0, self.svd_rank)
 
-        # ======================================== Low-rank operator
+        # Construct the low-rank operator
         self._a_tilde = self._construct_atilde(U, s, V, X1)
         self._eigs, self._eigvecs = np.linalg.eig(self._a_tilde)
 
-        # ======================================== Compute DMD modes
+        # Compute DMD modes
         self._modes = self._compute_modes(U, s, V, X1)
 
-        # ======================================== Set default time steps
+        # Set default time steps
         if times is None:
             times = [i for i in range(self.n_snapshots)]
         self.original_timesteps = np.array(times)
         self.dmd_timesteps = self.original_timesteps
 
-        # ======================================== Compute amplitudes
+        # Compute amplitudes
         self._b = self._compute_amplitudes()
 
-        # ======================================== Sort and filter modes
+        # Sort and filter modes
         self.sort_modes()
 
-        # ======================================== Print summary
+        # Print summary
         if verbose:
             print("\n*** DMD model information ***")
 

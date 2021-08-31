@@ -12,33 +12,6 @@ SVD = Tuple[ndarray, ndarray, ndarray]
 
 class DMDBase:
     """Dynamic Mode Decomposition base class.
-
-    Attributes
-    ----------
-    svd_rank : float or int
-        The SVD truncation rank. If -1, no truncation is used.
-        If a positive integer, the truncation rank is the argument.
-        If a float between 0 and 1, the minimum number of modes
-        needed to obtain an information content greater than the
-        argument is used.
-
-    exact : bool
-        Flag for exact modes. If False, projected modes are used.
-
-    opt : bool, default False
-            Flag for optimal mode amplitudes. If False, the modes are
-            fit to the initial condition.
-
-    ordering : {"AMPLITUDE", "EIGENVALUE"}
-            The sorting method applied to the dynamic modes.
-
-    original_timestamps : ndarray (n_snapshots,)
-        The timestamps corresponding to each snapshot in the
-        training data.
-
-    dmd_timestamps : ndarray
-        The timestamps to sample the model at. This is defaulted
-        to the same timestamps as the original ones.
     """
 
     from ._plotting import (plot_singular_values,
