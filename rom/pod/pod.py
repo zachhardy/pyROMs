@@ -34,18 +34,18 @@ class POD(PODBase):
         """
         X, Y = self._validate_data(X, Y)
 
-        # ======================================== Save the input data
+        # Save the input data
         self._snapshots = np.copy(X)
         self._parameters = np.copy(Y)
 
-        # ======================================== Perform the SVD
+        # Perform the SVD
         U, s, V = self._compute_svd(X.T, self.svd_rank)
         self._modes = U
 
-        # ======================================== Compute amplitudes
+        # Compute amplitudes
         self._b = self.transform(X)
 
-        # ======================================== Print summary
+        # Print summary
         if verbose:
             print("\n*** POD model information ***")
 
