@@ -2,7 +2,7 @@ import numpy as np
 
 from numpy import ndarray
 from numpy.linalg import norm
-from scipy.interpolate.ndgriddata import griddata
+from scipy.interpolate import griddata
 import matplotlib.pyplot as plt
 from typing import Union
 
@@ -80,7 +80,7 @@ class POD(PODBase):
                 "data must agree.")
         return X @ self.modes
 
-    def predict(self, Y: ndarray, method: str = "CUBIC") -> ndarray:
+    def predict(self, Y: ndarray, method: str = "cubic") -> ndarray:
         """Predict a full-order result for a set of parameters.
 
         Parameters
@@ -103,15 +103,15 @@ class POD(PODBase):
         amplitudes = self.interpolate(Y, method)
         return amplitudes @ self.modes.T
 
-    def interpolate(self, Y: TestData, method: str) -> ndarray:
+    def interpolate(self, Y: TestData, method: str = "cubic") -> ndarray:
         """Interpolate POD mode amplitudes.
 
         Parameters
         ----------
         Y : ndarray (n_snapshots, n_parameters)
             The query parameters.
-        method : str {"LINEAR", "CUBIC", "GP"}, default "CUBIC"
-            The interpolation method to use. "GP" stands for
+        method : str {"linear", "cubic", "gp"}, default "cubic"
+            The interpolation method to use. "gp" stands for
             Gaussian Processes.
 
         Returns
@@ -121,7 +121,7 @@ class POD(PODBase):
             the query parameters.
         """
         # Regular interpolation
-        if method in ["LINEAR", "CUBIC"]:
+        if method in ["linear", "cubic"]:
             args = (self.parameters, self.amplitudes, Y)
             amplitudes = griddata(*args, method=method.lower())
 
