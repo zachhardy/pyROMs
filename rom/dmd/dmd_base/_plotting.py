@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 def plot_singular_values(
         self: "DMDBase", normalized: bool = True,
         logscale: bool = True,
+        show_cutoff: bool = True,
         filename: str = None) -> None:
     """Plot the singular value spectrum.
 
@@ -21,10 +22,8 @@ def plot_singular_values(
     normalized : bool, default True
         If True, the singular values are normalized by
         the sum of all singular values.
-
     logscale : bool, default False
         If True, the plot will have a logarithmic y-axis.
-
     filename : str, default None
         If specified, the location to save the plot.
     """
@@ -39,8 +38,9 @@ def plot_singular_values(
     plt.ylabel(r"$\sigma / \sum{{\sigma}}$")
     plotter = plt.semilogy if logscale else plt.plot
     plotter(spectrum, "b-*", label="Singular Values")
-    plt.axvline(self.n_modes - 1, color="r",
-                ymin=1e-12, ymax=1.0 - 1.0e-12)
+    if show_cutoff:
+        plt.axvline(self.n_modes - 1, color="r",
+                    ymin=1e-12, ymax=1.0 - 1.0e-12)
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
@@ -109,8 +109,8 @@ def plot_1D_modes(
     for ind in indices:
         fig: Figure = plt.figure()
         fig.suptitle(f"DMD Mode {ind}\n$\omega$ = "
-                     f"{self.omegas[ind].real:.3e}"
-                     f"{self.omegas[ind].imag:+.5g}j")
+                     f"{self.omegas[ind].real:.2e}"
+                     f"{self.omegas[ind].imag:+.2e}j")
 
         real_ax: Axes = fig.add_subplot(1, 2, 1)
         imag_ax: Axes = fig.add_subplot(1, 2, 2)
@@ -177,8 +177,8 @@ def plot_dynamics(
     for ind in indices:
         fig: Figure = plt.figure()
         fig.suptitle(f"DMD Mode {ind}\n$\omega$ = "
-                     f"{self.omegas[ind].real:.3e}"
-                     f"{self.omegas[ind].imag:+.5g}j")
+                     f"{self.omegas[ind].real:.2e}"
+                     f"{self.omegas[ind].imag:+.2e}j")
 
         real_ax: Axes = fig.add_subplot(1, 2, 1)
         imag_ax: Axes = fig.add_subplot(1, 2, 2)
@@ -383,7 +383,7 @@ def plot_1D_mode_evolutions(self, indices: List[int] = None,
         fig: Figure = plt.figure()
         fig.suptitle(f"DMD Mode {ind}\n$\omega$ = "
                      f"{self.omegas[ind].real:.2e}"
-                     f"{self.omegas[ind].imag:+.5g}j")
+                     f"{self.omegas[ind].imag:+.2e}j")
 
         # ============================== Loop over components
         mode = self.modes.T[ind].reshape(-1, 1)
@@ -470,7 +470,7 @@ def plot_timestep_errors(self: "DMDBase",
     plt.xlabel("Time (s)")
     plt.ylabel(r"Relative $\ell^2$ Error")
     plotter = plt.semilogy if logscale else plt.plot
-    plotter(times, errors, "r-*", label="Reconstruction Error")
+    plotter(times[1:], errors[1:], "r-*", label="Reconstruction Error")
     plt.grid(True)
     plt.legend()
     plt.tight_layout()
