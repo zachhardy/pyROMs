@@ -1,74 +1,82 @@
 import numpy as np
 from numpy import ndarray
-from numpy.linalg import norm
+from typing import Union
 
 from .dmd_base import DMDBase
 
+SVDRankType = Union[int, float]
+OptType = Union[bool, int]
+RescaleModeType = Union[str, None, ndarray]
+SortedEigsType = Union[str, bool]
+
 
 class DMD(DMDBase):
-    """Traditional dynamic mode decomposition model.
+    """
+    Traditional Dynamic Mode Decomposition
+
+    Parameters
+    ----------
+    svd_rank : int or float, default -1
+        The SVD rank to use for truncation. If a positive integer,
+        the minimum of this number and the maximum possible rank
+        is used. If a float between 0 and 1, the minimum rank to
+        achieve the specified energy content is used. If -1, no
+        truncation is performed.
+    exact : bool, default False
+        A flag for using exact or projected dynamic modes.
+    opt : bool, default False
+        A flag for using optimal amplitudes or an initial
+        condition fit.
+    sorted_eigs : str {'real', 'abs'} or None
+        Mode sorting based on eigenvalues. If 'real', eigenvalues
+        are sorted by their real part. If 'abs', eigenvalues are
+        sorted by their magnitude. If None, no sorting is performed.
     """
 
-    def fit(self, X: ndarray, times: ndarray = None,
-            verbose: bool = True) -> None:
-        """Fit the model to the provided data.
+    def __init__(self,
+                 svd_rank: SVDRankType = -1,
+                 exact: bool = False,
+                 opt: bool = False,
+                 sorted_eigs: str = None) -> None:
+        super().__init__(svd_rank, exact, opt, sorted_eigs)
+
+    def fit(self, X: ndarray, verbose: bool = True) -> 'DMD':
+        """
+        Fit the traditional DMD model.
 
         Parameters
         ----------
-        X : ndarray (n_snapshots, n_features)
-            A matrix of snapshots stored row-wise.
-            
-        times : ndarray (n_snapshots,), default None
-            The timestamps corresponding to each snapshot in X.
-
+        X : ndarray (n_features, n_snapshots)
+            The snapshot matrix.
         verbose : bool, default True
+            Flag for printing DMD summary.
+
+        Returns
+        -------
+        self
         """
-        X, X_shape = self._validate_data(X)
+        self._snapshots = np.copy(X)
 
-        # Save the input data
-        self._snapshots: ndarray = np.copy(X)
-        self._snapshots_shape: tuple = X_shape
+        # Split the snapshots
+        X, Y = self.snapshots[:, :-1], self.snapshots[:, 1:]
 
-        # Split snapshots
-        X0 = self._snapshots[:-1].T
-        X1 = self._snapshots[1:].T
+        # Compute the SVD of X
+        U, s, V = self._compute_svd(X)
 
-        # Compute the SVD
-        U, s, V = self._compute_svd(X0, self.svd_rank)
+        self._compute_operator(Y, U, s, V)
+        self._decompose_Atilde()
+        self._compute_modes(Y, U, s, V)
 
-        # Construct the low-rank operator
-        self._a_tilde = self._construct_atilde(U, s, V, X1)
-        self._eigs, self._eigvecs = np.linalg.eig(self._a_tilde)
+        n_snapshots = self.n_snapshots
+        self.snapshot_time = {'t0': 0, 'tf': n_snapshots - 1, 'dt': 1}
+        self.dmd_time = {'t0': 0, 'tf': n_snapshots - 1, 'dt': 1}
 
-        # Compute DMD modes
-        self._modes = self._compute_modes(U, s, V, X1)
-
-        # Set default time steps
-        if times is None:
-            times = [i for i in range(self.n_snapshots)]
-        self.original_timesteps = np.array(times)
-        self.dmd_timesteps = self.original_timesteps
-
-        # Compute amplitudes
         self._b = self._compute_amplitudes()
 
-        # Sort and filter modes
-        self.sort_modes()
-
-        # Print summary
         if verbose:
-            print("\n*** DMD model information ***")
-
-            n = self.n_modes
-            print(f"Number of Modes:\t\t{n}")
-
-            s = self._singular_values
-            print(f"Smallest Kept Singular Value:\t{s[n - 1] / sum(s):.3e}")
-
-            ic = self.snapshots[0]
-            fit = (self.modes @ self.amplitudes).ravel()
-            ic_error = norm(ic - fit) / norm(ic)
-            print(f"Initial Condition Error:\t{ic_error:.3e}")
-
-            error = self.reconstruction_error
-            print(f"Reconstruction Error:\t\t{error:.3e}\n")
+            msg = '='*10 + ' DMD Summary ' + '='*10
+            header = '='*len(msg)
+            print('\n'.join(['', header, msg, header]))
+            print(f'Number of Modes:\t{self.n_modes}')
+            print(f'Reconstruction Error:\t{self.reconstructed_error:.3e}')
+            print()
