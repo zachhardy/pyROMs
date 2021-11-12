@@ -25,10 +25,10 @@ class PODBase:
         truncation is performed.
     """
 
-    from ._plotting import (plot_singular_values,
-                            plot_1D_modes,
-                            plot_coefficients,
-                            plot_error_decay)
+    from ._plotting import plot_scree
+    from ._plotting import plot_coefficients
+    from ._plotting import plot_modes_1D
+    from ._plotting import plot_rankwise_errors
 
     def __init__(self, svd_rank: SVDRankType = -1) -> None:
 
