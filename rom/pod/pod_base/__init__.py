@@ -4,13 +4,25 @@ from numpy.linalg import norm
 
 from typing import Union, Tuple, List
 
-Rank = Union[float, int]
-Dataset = Tuple[ndarray, ndarray]
-SVD = Tuple[ndarray, ndarray, ndarray]
+SVDRankType = Union[int, float]
+SVDOutputType = Union[ndarray, ndarray, ndarray]
+RankErrorType = Tuple[ndarray, ndarray]
+InputType = Union[ndarray, List[ndarray]]
+FormattedInputType = Tuple[ndarray, Tuple[int, int], ndarray]
 
 
 class PODBase:
-    """Principal Orthogonal Decomposition base class.
+    """
+    Principal Orthogonal Decomposition base class.
+
+    Parameters
+    ----------
+    svd_rank : int or float, default -1
+        The SVD rank to use for truncation. If a positive integer,
+        the minimum of this number and the maximum possible rank
+        is used. If a float between 0 and 1, the minimum rank to
+        achieve the specified energy content is used. If -1, no
+        truncation is performed.
     """
 
     from ._plotting import (plot_singular_values,
@@ -18,51 +30,47 @@ class PODBase:
                             plot_coefficients,
                             plot_error_decay)
 
-    def __init__(self, svd_rank: Rank = -1) -> None:
-        """
-        Parameters
-        ----------
-        svd_rank : int or float, default -1
-            The SVD truncation rank. If -1, no truncation is used.
-            If a positive integer, the truncation rank is the argument.
-            If a float between 0 and 1, the minimum number of modes
-            needed to obtain an information content greater than the
-            argument is used.
-        """
-        self.svd_rank: Rank = svd_rank
+    def __init__(self, svd_rank: SVDRankType = -1) -> None:
+
+        self._svd_rank: SVDRankType = svd_rank
 
         self._snapshots: ndarray = None
+        self._snapshots_shape: Tuple[int, int] = None
+
         self._parameters: ndarray = None
 
-        self._n_modes: int = 0
-        self._modes: ndarray = None
+        self._U: ndarray = None
+        self._Sigma: ndarray = None
 
-        self._singular_values: ndarray = None
+        self._modes: ndarray = None
         self._b: ndarray = None
 
     @property
-    def snapshots(self) -> ndarray:
-        """Get the original training data.
+    def svd_rank(self) -> SVDRankType:
+        """
+        Return the set SVD rank.
 
         Returns
         -------
-        ndarray (n_snapshots, n_features)
+        float or int
+        """
+        return self._svd_rank
+
+    @property
+    def snapshots(self) -> ndarray:
+        """
+        Get the original training data.
+
+        Returns
+        -------
+        ndarray (n_features, n_snapshots)
         """
         return self._snapshots
 
     @property
     def n_snapshots(self) -> int:
-        """Get the number of snapshots.
-
-        Returns
-        -------
-        int
         """
-        return self.snapshots.shape[0]
-
-    @property
-    def n_features(self) -> int:
-        """Get the number of features in each snapshot.
+        Get the number of snapshots.
 
         Returns
         -------
@@ -71,38 +79,53 @@ class PODBase:
         return self.snapshots.shape[1]
 
     @property
-    def parameters(self) -> ndarray:
-        """Get the original training parameters.
-
-        Returns
-        -------
-        ndarray (n_snapshots, n_parameters)
+    def n_features(self) -> int:
         """
-        return self._parameters
-
-    @property
-    def n_parameters(self) -> int:
-        """Get the number of parameters that describe a snapshot.
+        Get the number of features in each snapshot.
 
         Returns
         -------
         int
         """
-        return self.parameters.shape[1]
+        return self.snapshots.shape[0]
+
+    @property
+    def parameters(self) -> ndarray:
+        """
+        Get the original training parameters.
+
+        Returns
+        -------
+        ndarray (n_parameters, n_snapshots)
+        """
+        return self._parameters
+
+    @property
+    def n_parameters(self) -> int:
+        """
+        Get the number of parameters that describe a snapshot.
+
+        Returns
+        -------
+        int
+        """
+        return self.parameters.shape[0]
 
     @property
     def singular_values(self) -> ndarray:
-        """Get the singular values.
+        """
+        Get the singular values.
 
         Returns
         -------
         ndarray (n_snapshots,)
         """
-        return self._singular_values
+        return self._Sigma
 
     @property
     def modes(self) -> ndarray:
-        """Get the modes, stored column-wise.
+        """
+        Get the modes, stored column-wise.
 
         Returns
         -------
@@ -112,7 +135,8 @@ class PODBase:
 
     @property
     def n_modes(self) -> int:
-        """Get the number of modes.
+        """
+        Get the number of modes.
 
         Returns
         -------
@@ -122,59 +146,54 @@ class PODBase:
 
     @property
     def amplitudes(self) -> ndarray:
-        """Get the mode amplitudes per snapshot.
+        """
+        Get the mode amplitudes per snapshot.
 
         Returns
         -------
-        ndarray (n_snapshots, n_modes)
+        ndarray (n_modes, n_snapshots)
         """
-        return self._b[:, :self.n_modes]
+        return self._b
 
     @property
     def reconstructed_data(self) -> ndarray:
-        """Get the reconstructed training data.
+        """
+        Get the reconstructed training data.
 
         Returns
         -------
-        ndarray (n_snapshots, n_features)
-            The reconstructed training data.
+        ndarray (n_features, n_snapshots)
         """
-        return self.amplitudes @ self.modes.T
+        return self.modes @ self.amplitudes
 
     @property
     def reconstruction_error(self) -> float:
-        """Compute the training data reconstruction error.
+        """
+        Compute the training data reconstruction L^2 error.
 
         Returns
         -------
         float
-            The relative L2 error between the training snapshots
-            and the reconstructed snapshots.
         """
         X = self.snapshots
-        X_pred = self.reconstructed_data
-        return norm(X - X_pred) / norm(X)
+        X_pod = self.reconstructed_data
+        return norm(X - X_pod) / norm(X)
 
     def fit(self, X: ndarray, Y: ndarray = None) -> None:
         raise NotImplementedError(
             f'Subclasses must implement abstact method '
             f'{self.__class__.__name__}.fit')
 
-    def _compute_svd(self, X: ndarray, svd_rank: Rank = -1) -> SVD:
-        """Compute the truncated singular value decomposition of X
-
-        Parameters
-        ----------
-        X : ndarray
-        svd_rank : int, default -1
+    def _compute_svd(self) -> SVDOutputType:
         """
+        Compute the truncated singular value decomposition
+        of the snapshots.
+        """
+        X = self._snapshots
         U, s, Vh = np.linalg.svd(X, full_matrices=False)
-        self._singular_values = s
         V = Vh.conj().T
 
-        if svd_rank is None:
-            svd_rank = self.svd_rank
-
+        svd_rank = self._svd_rank
         if 0.0 < svd_rank < 1.0:
             cumulative_energy = np.cumsum(s ** 2 / sum(s ** 2))
             rank = np.searchsorted(cumulative_energy, svd_rank) + 1
@@ -182,106 +201,92 @@ class PODBase:
             rank = min(svd_rank, min(X.shape))
         else:
             rank = X.shape[1]
+
+        self._U = U
+        self._Sigma = s
         return U[:, :rank], s[:rank], V[:, :rank]
 
-    def compute_error_decay(self, skip: int = 1,
-                            end: int = None) -> Tuple[List[float], List[int]]:
-        """Compute the decay in the error.
-
-        This method computes the  error decay as a function
-        of number of modes included in the model.
+    def compute_rankwise_errors(self, skip: int = 1,
+                                end: int = None) -> RankErrorType:
+        """
+        Compute the error as a function of rank.
 
         Parameters
         ----------
         skip : int, default 1
-            Interval to use when varying number of modes.
-        end : int, default None
-            The largest number of modes to compute the reconstruction
-            error for. If None, the last mode will be the last one.
+            Interval between ranks to compute errors for. The default
+            is to compute errors at all ranks.
+        end : int, default -1
+            The last rank to compute the error for. The default is to
+            end at the maximum rank.
 
         Returns
         -------
-        ndarray
-            The reproduction error as a function of n_modes.
-        ndarray
-            The corresponding number of modes to each entry of
-            the error vector.
+        ndarray (varies,)
+            The ranks used to compute errors.
+        ndarray (varies,)
+            The errors for each rank.
         """
-        X, Y = self.snapshots, self.parameters
-        svd_rank_original = self.svd_rank
+        X, Y = self._snapshots, self._parameters
+        orig_rank = self._svd_rank
         if end is None or end > min(X.shape) - 1:
             end = min(X.shape) - 1
 
-        errors: List[float] = []
-        n_modes: List[int] = []
-        for n in range(0, end, skip):
-            self.svd_rank = n + 1
+        errors, ranks = [], []
+        for r in range(0, end, skip):
+            self._svd_rank = r + 1
             self.fit(X, Y)
+
             error = self.reconstruction_error.real
             errors.append(error)
-            n_modes.append(n)
+            ranks.append(r + 1)
 
-        self.svd_rank = svd_rank_original
+        self._svd_rank = orig_rank
         self.fit(X, Y)
-        return errors, n_modes
+        return ranks, errors
 
     @staticmethod
-    def _center_data(data: ndarray) -> ndarray:
-        """Center the data.
-
-        This removes the mean and scales by the standard
-        deviation row-wise.
+    def _validate_data(X: InputType,
+                       Y: ndarray = None) -> FormattedInputType:
+        """
+        Validate the training data.
 
         Parameters
         ----------
-        data : ndarray (n_snapshots, n_modes or n_features)
-            The data to center.
+        X : ndarray or List[ndarray]
+            The training snapshots.
+        Y : ndarray
+            The training parameter labels.
 
         Returns
         -------
-        ndarray (n_snapshots, n_modes or n_features)
-            The centered data.
+        ndarray (n_features, n_snapshots)
+            The formatted snapshots.
+        Tuple[int, int]
+            The training snapshot shape.
+        ndarray (n_parameters, n_snapshots)
+            The formatted parameters.
         """
-        if data.ndim == 1:
-            return (data - np.mean(data)) / np.std(data)
+        if isinstance(X, ndarray) and X.ndim == 2:
+            snapshots = X
+            snapshots_shape = None
         else:
-            mean = np.mean(data, axis=1).reshape(-1, 1)
-            std = np.std(data, axis=1).reshape(-1, 1)
-            return (data - mean) / std
+            input_shapes = [np.asarray(x).shape for x in X]
 
-    @staticmethod
-    def _validate_data(X: ndarray, Y: ndarray = None) -> Dataset:
-        """Validate training data.
+            if len(set(input_shapes)) != 1:
+                raise ValueError(
+                    'All snapshots must have the same dimension.')
 
-        Parameters
-        ----------
-        X : ndarray (n_snapshots, n_features)
-            2D matrix containing training snapshots
-            stored row-wise.
-        Y : ndarray (n_snapshots, n_parameters) or None
-            Matrix containing training parameters stored
-            row-wise.
+            snapshots_shape = input_shapes[0]
+            snapshots = np.transpose([np.array(x).flatten() for x in X])
 
-        Returns
-        -------
-       The inputs
-        """
-        # Check types for X and Y
-        if not isinstance(X, (np.ndarray, list)):
-            raise TypeError('X must be a numpy.ndarray or list.')
         if Y is not None:
-            if not isinstance(Y, (np.ndarray, list)):
-                raise TypeError('Y must be a numpy.ndarray, list, or None.')
+            if isinstance(Y, ndarray) and Y.ndim == 2:
+                if Y.shape[1] != snapshots.shape[1]:
+                    raise ValueError(
+                        'There must be the same number of parameter sets '
+                        'as snapshots in the training data.')
+            else:
+                Y = np.array(Y).reshape(-1, Y.shape[1])
 
-        # Format X
-        X = np.asarray(X)
-        if X.ndim != 2:
-            raise AssertionError('X must be 2D data.')
-
-        # Format Y
-        if Y is not None:
-            Y = np.asarray(Y).reshape(len(Y), -1)
-            if len(Y) != len(X):
-                raise AssertionError('There must be a parameter set for '
-                                     'each provided snapshot.')
-        return X, Y
+        return snapshots, snapshots_shape, Y

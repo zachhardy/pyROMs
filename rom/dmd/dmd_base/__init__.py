@@ -4,12 +4,13 @@ from numpy.linalg import norm
 import matplotlib.pyplot as plt
 from os.path import splitext
 from scipy.linalg import pinv, svd
-from typing import Union, Tuple
+from typing import Union, Tuple, List
 
 SVDRankType = Union[int, float]
-SortedEigsType = Union[str, bool]
-SVDOutputType = Union[ndarray, ndarray, ndarray]
-RankErrorType = Union[ndarray, ndarray]
+SVDOutputType = Tuple[ndarray, ndarray, ndarray]
+SortMethodType = Union[str, None]
+RankErrorType = Tuple[ndarray, ndarray]
+InputType = Union[ndarray, List[ndarray]]
 
 
 class DMDBase:
@@ -53,7 +54,7 @@ class DMDBase:
 
         # Snapshot information
         self._snapshots: ndarray = None
-        self._snapshots_shape: tuple = None
+        self._snapshots_shape: Tuple[int, int] = None
 
         # Temporal information
         self.snapshot_time: dict = None
@@ -134,8 +135,6 @@ class DMDBase:
         -------
         int
         """
-        if self.snapshots is None:
-            raise ValueError('No snapshots found.')
         return self.snapshots.shape[1]
 
     @property
@@ -147,8 +146,6 @@ class DMDBase:
         -------
         int
         """
-        if self.snapshots is None:
-            raise ValueError('No snapshots found.')
         return self.snapshots.shape[0]
 
     @property
@@ -312,7 +309,7 @@ class DMDBase:
 
         Returns
         -------
-        ndarray (rank, n_snapshots)
+        ndarray (n_modes, n_snapshots)
         """
         t0 = self.snapshot_time['t0']
         n_steps = self.dmd_timesteps.shape[0]
@@ -332,7 +329,7 @@ class DMDBase:
         return self.modes @ self.dynamics
 
     @property
-    def reconstructed_error(self) -> float:
+    def reconstruction_error(self) -> float:
         """
         Compute the absolute reconstruction error.
 
@@ -361,7 +358,7 @@ class DMDBase:
             errors[t] = norm(X[:, t] - Xdmd[:, t]) / norm(X[:, t])
         return errors
 
-    def fit(self, X: ndarray, verbose: bool) -> 'DMDBase':
+    def fit(self, X: InputType, verbose: bool) -> 'DMDBase':
         """
         Abstract method for fitting the DMD model.
         """
@@ -538,7 +535,7 @@ class DMDBase:
             self._svd_rank = r + 1
             self.fit(X, False)
 
-            error = self.reconstructed_error.real
+            error = self.reconstruction_error.real
             errors.append(error)
             ranks.append(r + 1)
 
@@ -557,3 +554,34 @@ class DMDBase:
         """
         return {'svd_rank': self._svd_rank, 'exact': self._exact,
                 'opt': self._opt, 'sorted_eigs': self._sort_method}
+
+    @staticmethod
+    def _validate_data(X: InputType) -> Tuple[ndarray, Tuple[int, int]]:
+        """
+        Validate the training data.
+
+        Parameters
+        ----------
+        X : ndarray or List[ndarray]
+            The training snapshots.
+
+        Returns
+        -------
+        ndarray (n_features, n_snapshots)
+            The formatted snapshots.
+        Tuple[int, int]
+            The training snapshot shape.
+        """
+        if isinstance(X, ndarray) and X.ndim == 2:
+            snapshots = X
+            snapshots_shape = None
+        else:
+            input_shapes = [np.asarray(x).shape for x in X]
+
+            if len(set(input_shapes)) != 1:
+                raise ValueError(
+                    'All snapshots must have the same dimension.')
+
+            snapshots_shape = input_shapes[0]
+            snapshots = np.transpose([np.array(x).flatten() for x in X])
+        return snapshots, snapshots_shape

@@ -5,9 +5,6 @@ from typing import Union
 from .dmd_base import DMDBase
 
 SVDRankType = Union[int, float]
-OptType = Union[bool, int]
-RescaleModeType = Union[str, None, ndarray]
-SortedEigsType = Union[str, bool]
 
 
 class DMD(DMDBase):
@@ -55,7 +52,7 @@ class DMD(DMDBase):
         -------
         self
         """
-        self._snapshots = np.copy(X)
+        self._snapshots, self._snapshots_shape = self._validate_data(X)
 
         # Split the snapshots
         X, Y = self.snapshots[:, :-1], self.snapshots[:, 1:]
@@ -79,5 +76,5 @@ class DMD(DMDBase):
             header = '='*len(msg)
             print('\n'.join(['', header, msg, header]))
             print(f'Number of Modes:\t{self.n_modes}')
-            print(f'Reconstruction Error:\t{self.reconstructed_error:.3e}')
+            print(f'Reconstruction Error:\t{self.reconstruction_error:.3e}')
             print()
