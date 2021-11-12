@@ -202,7 +202,7 @@ def plot_dynamics(self: 'DMDBase',
 
     # Plot each mode specified
     for idx in mode_indices:
-        dynamic: ndarray = self.dynamics[idx]
+        dynamic: ndarray = self.dynamics[idx] / self._b[idx]
 
         # Make figure
         fig: Figure = plt.figure()
@@ -217,7 +217,7 @@ def plot_dynamics(self: 'DMDBase',
         real_ax.set_ylabel('Real', fontsize=12)
         real_ax.grid(True)
         real_plotter = real_ax.semilogy if logscale else real_ax.plot
-        real_plotter(t, dynamic.real/norm(dynamic.real))
+        real_plotter(t, dynamic.real)
 
         # Plot the imaginary part
         if imaginary:
@@ -226,7 +226,7 @@ def plot_dynamics(self: 'DMDBase',
             imag_ax.set_ylabel('Imaginary', fontsize=12)
             imag_ax.grid(True)
             imag_plotter = imag_ax.semilogy if logscale else imag_ax.plot
-            imag_plotter(t, dynamic.imag/norm(dynamic.imag))
+            imag_plotter(t, dynamic.imag)
 
         # Save the plot
         plt.tight_layout()
@@ -314,10 +314,10 @@ def plot_timestep_errors(self: 'DMDBase',
         plt.savefig(basename + ".pdf")
 
 
-def plot_error_decay(self: 'DMDBase', skip: int = 1,
-                     end: int = -1,
-                     logscale: bool = True,
-                     filename: str = None) -> None:
+def plot_rankwise_errors(self: 'DMDBase', skip: int = 1,
+                         end: int = -1,
+                         logscale: bool = True,
+                         filename: str = None) -> None:
     """
     Plot the reconstruction errors.
 

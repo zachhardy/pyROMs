@@ -27,7 +27,7 @@ class DMD(DMDBase):
     opt : bool, default False
         A flag for using optimal amplitudes or an initial
         condition fit.
-    sorted_eigs : str {'real', 'abs'} or None
+    sort_method : str {'eigs', 'amps'} or None
         Mode sorting based on eigenvalues. If 'real', eigenvalues
         are sorted by their real part. If 'abs', eigenvalues are
         sorted by their magnitude. If None, no sorting is performed.
@@ -37,8 +37,8 @@ class DMD(DMDBase):
                  svd_rank: SVDRankType = -1,
                  exact: bool = False,
                  opt: bool = False,
-                 sorted_eigs: str = None) -> None:
-        super().__init__(svd_rank, exact, opt, sorted_eigs)
+                 sort_method: str = None) -> None:
+        super().__init__(svd_rank, exact, opt, sort_method)
 
     def fit(self, X: ndarray, verbose: bool = True) -> 'DMD':
         """
@@ -72,6 +72,7 @@ class DMD(DMDBase):
         self.dmd_time = {'t0': 0, 'tf': n_snapshots - 1, 'dt': 1}
 
         self._b = self._compute_amplitudes()
+        self._sort_modes()
 
         if verbose:
             msg = '='*10 + ' DMD Summary ' + '='*10

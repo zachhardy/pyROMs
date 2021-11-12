@@ -29,27 +29,27 @@ class DMDBase:
     opt : bool, default False
         A flag for using optimal amplitudes or an initial
         condition fit.
-    sorted_eigs : str {'real', 'abs'} or None
+    sort_method : str {'eigs', 'amps'} or Noneion fit.
         Mode sorting based on eigenvalues. If 'real', eigenvalues
         are sorted by their real part. If 'abs', eigenvalues are
         sorted by their magnitude. If None, no sorting is performed.
     """
 
-    from ._plotting import plot_scree
+    from ._plotting import plot_scree, plot_eigs
     from ._plotting import plot_modes_1D, plot_dynamics
-    from ._plotting import plot_eigs, plot_error_decay, plot_timestep_errors
+    from ._plotting import plot_rankwise_errors, plot_timestep_errors
 
     def __init__(self,
                  svd_rank: SVDRankType = -1,
                  exact: bool = False,
                  opt: bool = False,
-                 sorted_eigs: str = None) -> None:
+                 sort_method: str = None) -> None:
 
         # General parameters
         self._svd_rank: SVDRankType = svd_rank
         self._exact: bool = exact
         self._opt: bool = opt
-        self._sorted_eigs: str = sorted_eigs
+        self._sort_method: str = sort_method
 
         # Snapshot information
         self._snapshots: ndarray = None
@@ -104,7 +104,7 @@ class DMDBase:
         return self._opt
 
     @property
-    def sorted_eigs(self) -> str:
+    def sort_method(self) -> str:
         """
         Get the eigenvalue sorting option.
 
@@ -112,7 +112,7 @@ class DMDBase:
         -------
         str {'real', 'abs'}
         """
-        return self._sorted_eigs
+        return self._sort_method
 
     @property
     def snapshots(self) -> ndarray:
@@ -246,6 +246,17 @@ class DMDBase:
         return self._eigenvectors
 
     @property
+    def amplitudes(self) -> ndarray:
+        """
+        Get the low-rank eigenvectors of the low-rank evolution operator.
+
+        Returns
+        -------
+        ndarray (n_modes,)
+        """
+        return self._b
+
+    @property
     def omegas(self) -> ndarray:
         """
         Get the continuous eigenvalues.
@@ -255,7 +266,11 @@ class DMDBase:
         ndarray (rank,)
         """
         dt = self.snapshot_time['dt']
-        return np.log(self.eigenvalues, dtype=complex) / dt
+        omegas = np.log(self.eigenvalues, dtype=complex)
+        for i in range(len(omegas)):
+            if not omegas[i].imag % np.pi:
+                omegas[i] = omegas[i].real + 0.0j
+        return omegas / dt
 
     @property
     def growth_rate(self) -> ndarray:
@@ -412,27 +427,6 @@ class DMDBase:
         """
         # Compute decomposition
         eigvals, eigvecs = np.linalg.eig(self._Atilde)
-
-        # Sorting
-        if self._sorted_eigs is not None:
-            if self._sorted_eigs == 'abs':
-                def k(tp):
-                    return abs(tp[0])
-            elif self._sorted_eigs == 'real':
-                def k(tp):
-                    eig = tp[0]
-                    if isinstance(eig, complex):
-                        return eig.real, eig.imag
-                    else:
-                        return eig.real, 0.0
-            else:
-                raise ValueError(
-                    f'Invalid sorting option {self._sorted_eigs}.')
-
-            vals, vecs = zip(*sorted(zip(eigvals, eigvecs.T), key=k))
-            eigvals = np.array([eig for eig in vals])
-            eigvecs = np.array([vec for vec in vecs]).T
-
         self._eigenvalues = eigvals
         self._eigenvectors = eigvecs
 
@@ -497,6 +491,20 @@ class DMDBase:
                 self.modes.T[i] *= -1.0
         return b
 
+    def _sort_modes(self) -> None:
+        """
+        Sort the modes based on sort method.
+        """
+        if self._sort_method in ['eigs', 'amps']:
+            if self._sort_method == 'eigs':
+                ind = np.argsort(self._eigenvalues.real)[::-1]
+            else:
+                ind = np.argsort(self._b.real)[::-1]
+            self._eigenvalues = self._eigenvalues[ind]
+            self._eigenvectors = self._eigenvectors.T[ind].T
+            self._modes = self._modes.T[ind].T
+            self._b = self._b[ind]
+
     def compute_rankwise_errors(self,
                                 skip: int = 1,
                                 end: int = -1) -> RankErrorType:
@@ -548,4 +556,4 @@ class DMDBase:
         dict
         """
         return {'svd_rank': self._svd_rank, 'exact': self._exact,
-                'opt': self._opt, 'sorted_eigs': self._sorted_eigs}
+                'opt': self._opt, 'sorted_eigs': self._sort_method}
