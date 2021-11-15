@@ -55,7 +55,7 @@ class DMD(DMDBase):
         self._snapshots, self._snapshots_shape = self._validate_data(X)
 
         # Split the snapshots
-        X, Y = self.snapshots[:, :-1], self.snapshots[:, 1:]
+        X, Y = self._snapshots[:, :-1], self._snapshots[:, 1:]
 
         # Compute the SVD of X
         U, s, V = self._compute_svd(X)
@@ -64,9 +64,12 @@ class DMD(DMDBase):
         self._decompose_Atilde()
         self._compute_modes(Y, U, s, V)
 
-        n_snapshots = self.n_snapshots
-        self.snapshot_time = {'t0': 0, 'tf': n_snapshots - 1, 'dt': 1}
-        self.dmd_time = {'t0': 0, 'tf': n_snapshots - 1, 'dt': 1}
+        if self.snapshot_time is None:
+            n_snapshots = self.n_snapshots
+            self.snapshot_time = {'t0': 0, 'tf': n_snapshots - 1, 'dt': 1}
+            self.dmd_time = {'t0': 0, 'tf': n_snapshots - 1, 'dt': 1}
+        else:
+            self.dmd_time = self.snapshot_time
 
         self._b = self._compute_amplitudes()
         self._sort_modes()

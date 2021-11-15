@@ -263,11 +263,7 @@ class DMDBase:
         ndarray (rank,)
         """
         dt = self.snapshot_time['dt']
-        omegas = np.log(self.eigenvalues, dtype=complex)
-        for i in range(len(omegas)):
-            if not omegas[i].imag % np.pi:
-                omegas[i] = omegas[i].real + 0.0j
-        return omegas / dt
+        return np.log(self.eigenvalues, dtype=complex) / dt
 
     @property
     def growth_rate(self) -> ndarray:
@@ -312,10 +308,8 @@ class DMDBase:
         ndarray (n_modes, n_snapshots)
         """
         t0 = self.snapshot_time['t0']
-        n_steps = self.dmd_timesteps.shape[0]
-        tmp = np.outer(self.eigenvalues, np.ones(n_steps))
-        tpow = (self.dmd_timesteps - t0) / self.snapshot_time['dt']
-        return np.power(tmp, tpow) * self._b[:, None]
+        exp_arg = np.outer(self.omegas, self.dmd_timesteps - t0)
+        return np.exp(exp_arg) * self._b[:, None]
 
     @property
     def reconstructed_data(self) -> ndarray:
