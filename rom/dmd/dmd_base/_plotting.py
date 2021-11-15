@@ -126,7 +126,9 @@ def plot_modes_1D(self: 'DMDBase',
 
         # Make figure
         fig: Figure = plt.figure()
-        fig.suptitle(f'DMD Mode {idx}')
+        fig.suptitle(f'DMD Mode {idx}\n$\omega$ = '
+                     f'{self.omegas.real[idx]:.3e}'
+                     f'{self.omegas.imag[idx]:+.3g}j')
         n_plots = 2 if imaginary else 1
 
         # Plot real part
@@ -206,9 +208,9 @@ def plot_dynamics(self: 'DMDBase',
 
         # Make figure
         fig: Figure = plt.figure()
-        fig.suptitle(f'DMD Dynamics {idx}\n$\omega$ = '
-                     f'{self.omegas[idx].real:.3e}'
-                     f'{self.omegas[idx].imag:+.3g}j')
+        fig.suptitle(f'DMD Mode {idx}\n$\omega$ = '
+                     f'{self.omegas.real[idx]:.3e}'
+                     f'{self.omegas.imag[idx]:+.3g}j')
         n_plots = 2 if imaginary else 1
 
         # Plot real part
