@@ -11,7 +11,7 @@ from numpy.linalg import norm
 from rom.dmd import DMD
 from rom.pod import POD
 
-plt.rcParams["pcolor.shading"] = "auto"
+plt.rcParams['pcolor.shading'] = 'auto'
 
 
 # =================================== Signals
@@ -29,8 +29,8 @@ times = np.linspace(0, 4 * np.pi, 129)
 xgrid, tgrid = np.meshgrid(grid, times)
 
 # =================================== Generate the data
-X1 = f1(xgrid, tgrid)
-X2 = f2(xgrid, tgrid)
+X1 = f1(xgrid, tgrid).T
+X2 = f2(xgrid, tgrid).T
 X = X1 + X2
 
 # =================================== Plot the data
@@ -42,7 +42,7 @@ for n, title, d in zip(range(131, 134), titles, data):
     plt.title(title)
     plt.xlabel("x")
     plt.ylabel("t")
-    plt.pcolormesh(xgrid, tgrid, d.real, cmap="jet")
+    plt.pcolormesh(xgrid, tgrid, d.real.T, cmap='jet')
     plt.colorbar()
 plt.tight_layout()
 
@@ -63,9 +63,9 @@ data = [X, X_dmd, abs((X - X_dmd).real)]
 for n, title, d in zip(range(131, 134), titles, data):
     plt.subplot(n)
     plt.title(title)
-    plt.xlabel("x")
-    plt.ylabel("t")
-    plt.pcolormesh(xgrid, tgrid, d.real, cmap="jet")
+    plt.xlabel('x')
+    plt.ylabel('t')
+    plt.pcolormesh(xgrid, tgrid, d.real.T, cmap='jet')
     plt.colorbar()
 plt.tight_layout()
 
@@ -76,9 +76,9 @@ data = [X, X_dmd, abs((X - X_dmd).real)]
 for n, title, d in zip(range(131, 134), titles, data):
     plt.subplot(n)
     plt.title(title)
-    plt.xlabel("x")
-    plt.ylabel("t")
-    plt.pcolormesh(xgrid, tgrid, d.real, cmap="jet")
+    plt.xlabel('x')
+    plt.ylabel('t')
+    plt.pcolormesh(xgrid, tgrid, d.real.T, cmap='jet')
     plt.colorbar()
 plt.tight_layout()
 
@@ -100,15 +100,15 @@ for i, n in enumerate(range(121, 123)):
     pod_mode /= norm(pod_mode)
 
     plt.subplot(n)
-    plt.title(f"Signal {i}")
-    plt.xlabel("x")
-    plt.plot(grid, signal, "-ob", label="Signal")
-    plt.plot(grid, dmd_mode, "-*r", label="DMD")
-    plt.plot(grid, pod_mode, "-^g", label="POD")
+    plt.title(f'Signal {i}')
+    plt.xlabel('x')
+    plt.plot(grid, signal, '-ob', label='Signal')
+    plt.plot(grid, dmd_mode, '-*r', label='DMD')
+    plt.plot(grid, pod_mode, '-^g', label='POD')
     plt.legend()
     plt.grid(True)
 plt.tight_layout()
 
 path = os.path.dirname(os.path.realpath(__file__))
-plt.savefig(path + "/test1_dmd_pod_modes.pdf")
+plt.savefig(path + '/test1_dmd_pod_modes.pdf')
 plt.show()
