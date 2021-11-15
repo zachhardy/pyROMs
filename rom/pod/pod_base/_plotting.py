@@ -205,7 +205,7 @@ def plot_coefficients(self: 'PODBase',
 
 
 def plot_rankwise_errors(self: 'PODBase', skip: int = 1,
-                         end: int = -1,
+                         end: int = None,
                          logscale: bool = True,
                          filename: str = None) -> None:
     """

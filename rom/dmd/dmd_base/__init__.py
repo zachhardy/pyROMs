@@ -531,7 +531,7 @@ class DMDBase:
 
             error = self.reconstruction_error.real
             errors.append(error)
-            ranks.append(r + 1)
+            ranks.append(r)
 
         # Reset the model
         self._svd_rank = orig_rank

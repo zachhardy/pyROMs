@@ -235,14 +235,14 @@ class PODBase:
         errors, ranks = [], []
         for r in range(0, end, skip):
             self._svd_rank = r + 1
-            self.fit(X, Y)
+            self.fit(X, Y, verbose=False)
 
             error = self.reconstruction_error.real
             errors.append(error)
-            ranks.append(r + 1)
+            ranks.append(r)
 
         self._svd_rank = orig_rank
-        self.fit(X, Y)
+        self.fit(X, Y, verbose=False)
         return ranks, errors
 
     @staticmethod
