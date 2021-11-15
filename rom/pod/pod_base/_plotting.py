@@ -122,7 +122,7 @@ def plot_modes_1D(self: 'PODBase',
 
         # Make figure
         fig: Figure = plt.figure()
-        fig.suptitle(f'DMD Mode {idx}')
+        fig.suptitle(f'POD Mode {idx}')
         n_plots = 2 if imaginary else 1
 
         # Plot real part
@@ -201,7 +201,7 @@ def plot_coefficients(self: 'PODBase',
             plt.tight_layout()
             if filename is not None:
                 basename, ext = splitext(filename)
-                plt.savefig(basename + f"_{idx}.pdf")
+                plt.savefig(basename + f'_{idx}.pdf')
 
 
 def plot_rankwise_errors(self: 'PODBase', skip: int = 1,
@@ -242,4 +242,4 @@ def plot_rankwise_errors(self: 'PODBase', skip: int = 1,
     # Save the figure
     if filename is not None:
         basename, ext = splitext(filename)
-        plt.savefig(basename + ".pdf")
+        plt.savefig(basename + '.pdf')
