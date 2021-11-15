@@ -82,7 +82,7 @@ class POD(PODBase):
 
         Parameters
         ----------
-        Y : ndarray (n_parameters, n_snapshots)
+        Y : ndarray (n_snapshots, n_parameters)
             The query parameters.
         method : str {'linear', 'cubic', 'gp'}, default 'cubic'
             The prediction method to use.
@@ -91,7 +91,7 @@ class POD(PODBase):
         -------
         ndarray (n_features, n_snapshots)
         """
-        if Y.shape[0] != self.n_parameters:
+        if Y.shape[1] != self.n_parameters:
             raise ValueError(
                 'Y must have the same number of parameters as '
                 'the training data.')
@@ -105,9 +105,9 @@ class POD(PODBase):
 
         Parameters
         ----------
-        Y : ndarray (n_parameters, n_snapshots)
+        Y : ndarray (n_snapshots, n_parameters)
             The query parameters.
-        method : str {'linear', 'cubic', 'gp'}, default 'cubic'
+        method : str {'linear', 'cubic', 'nearest'}, default 'cubic'
             The prediction method to use.
 
         Returns
@@ -117,8 +117,8 @@ class POD(PODBase):
             the query parameters.
         """
         # Regular interpolation
-        if method in ['linear', 'cubic']:
-            args = (self.parameters.T, self.amplitudes.T, Y.T)
+        if method in ['linear', 'cubic', 'nearest']:
+            args = (self.parameters, self.amplitudes.T, Y)
             amplitudes = griddata(*args, method=method.lower())
 
         # Gaussian Process interpolation

@@ -96,7 +96,7 @@ class PODBase:
 
         Returns
         -------
-        ndarray (n_parameters, n_snapshots)
+        ndarray (n_snapshots, n_parameters)
         """
         return self._parameters
 
@@ -109,7 +109,7 @@ class PODBase:
         -------
         int
         """
-        return self.parameters.shape[0]
+        return self.parameters.shape[1]
 
     @property
     def singular_values(self) -> ndarray:
@@ -282,11 +282,11 @@ class PODBase:
 
         if Y is not None:
             if isinstance(Y, ndarray) and Y.ndim == 2:
-                if Y.shape[1] != snapshots.shape[1]:
+                if Y.shape[0] != snapshots.shape[1]:
                     raise ValueError(
                         'There must be the same number of parameter sets '
                         'as snapshots in the training data.')
             else:
-                Y = np.array(Y).reshape(-1, Y.shape[1])
+                Y = np.array(Y).reshape(Y.shape[0], -1)
 
         return snapshots, snapshots_shape, Y
