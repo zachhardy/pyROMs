@@ -67,14 +67,14 @@ class POD(PODBase):
         ndarray (n_modes, n_snapshots)
             The low-rank representation of X.
         """
-        if self.modes is None:
+        if self._modes is None:
             raise AssertionError('The POD model must be fit.')
 
         if X.shape[0] != self.n_features:
             raise AssertionError(
                 'The number of features must match the number '
                 'of features in the training data.')
-        return self.modes.T @ X
+        return self._modes.T @ X
 
     def predict(self, Y: ndarray, method: str = 'cubic') -> ndarray:
         """
@@ -97,7 +97,7 @@ class POD(PODBase):
                 'the training data.')
 
         amplitudes = self._interpolate(Y, method)
-        return self.modes @ amplitudes
+        return self._modes @ amplitudes
 
     def _interpolate(self, Y: ndarray, method: str = 'cubic') -> ndarray:
         """
@@ -118,7 +118,7 @@ class POD(PODBase):
         """
         # Regular interpolation
         if method in ['linear', 'cubic', 'nearest']:
-            args = (self.parameters, self.amplitudes.T, Y)
+            args = (self._parameters, self._b.T, Y)
             amplitudes = griddata(*args, method=method.lower())
 
         # Gaussian Process interpolation
@@ -127,6 +127,6 @@ class POD(PODBase):
             kernel = C(1.0) * RBF(1.0)
             gp = GaussianProcessRegressor(kernel, n_restarts_optimizer=100,
                                           alpha=1e-4, normalize_y=True)
-            gp.fit(self.parameters, self.amplitudes)
+            gp.fit(self._parameters, self._b.T)
             amplitudes = gp.predict(Y)
-        return amplitudes.reshape(len(Y), self.n_modes)
+        return amplitudes.reshape(len(Y), self.n_modes).T

@@ -181,12 +181,12 @@ def plot_coefficients(self: 'PODBase',
                 mode_indices[i] = self.n_modes + idx
 
     # One-dimensional parameter spaces
-    if y.shape[0] == 1:
+    if y.shape[1] == 1:
         y = y.flatten()
 
         # Sort by parameter values
         idx = np.argsort(y)
-        y, amplitudes = y[idx], self.amplitudes[idx]
+        y, amplitudes = y[idx], self.amplitudes.T[idx]
 
         # Plot plot modes
         for idx in mode_indices:
