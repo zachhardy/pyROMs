@@ -11,11 +11,11 @@ from matplotlib.axes import Axes
 from os.path import splitext
 from typing import Union, List
 
-from ..base import ROMBase
+from ..plotting_mixin import PlottingMixin
 from pydmd.dmdbase import DMDBase as PyDMDBase
 
 
-class DMDBase(PyDMDBase, ROMBase):
+class DMDBase(PyDMDBase, PlottingMixin):
     """
     Dynamic Mode Decomposition base class inherited from PyDMD.
 
@@ -67,12 +67,44 @@ class DMDBase(PyDMDBase, ROMBase):
                  rescale_mode: Union[str, None, ndarray] = None,
                  forward_backward: bool = False,
                  sorted_eigs: Union[bool, str] = False) -> None:
-        ROMBase.__init__(self)
         PyDMDBase.__init__(self, svd_rank, tlsq_rank, exact, opt,
                            rescale_mode, forward_backward, sorted_eigs)
 
         self._U: ndarray = None  # svd modes
-        self._Sigma: ndarray = None  # singular valueså
+        self._Sigma: ndarray = None  # singular values
+
+    @property
+    def n_snapshots(self) -> int:
+        """
+        Get the number of snapshots.
+
+        Returns
+        -------
+        int
+        """
+        return self.snapshots.shape[1]
+
+    @property
+    def n_features(self) -> int:
+        """
+        Get the number of features in each snapshot.
+
+        Returns
+        -------
+        int
+        """
+        return self.snapshots.shape[0]
+
+    @property
+    def n_modes(self) -> int:
+        """
+        Get the number of modes.
+
+        Returns
+        -------
+        int
+        """
+        return self.modes.shape[1]
 
     @property
     def singular_values(self) -> ndarray:
