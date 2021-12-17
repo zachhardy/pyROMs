@@ -1,130 +1,81 @@
 import numpy as np
 from numpy import ndarray
+
+from numpy.linalg import svd
 from numpy.linalg import norm
+
 import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
+from matplotlib.axes import Axes
+
 from os.path import splitext
-from scipy.linalg import pinv, svd
-from typing import Union, Tuple, List
+from typing import Union, List, Tuple
 
-SVDRankType = Union[int, float]
-SVDOutputType = Tuple[ndarray, ndarray, ndarray]
-SortMethodType = Union[str, None]
-RankErrorType = Tuple[ndarray, ndarray]
-InputType = Union[ndarray, List[ndarray]]
+from pyPDEs.utilities import Vector
+
+from pydmd.dmdbase import DMDBase as PyDMDBase
 
 
-class DMDBase:
+class DMDBase(PyDMDBase):
     """
-    Base class for Dynamic Mode Decomposition
+    Dynamic Mode Decomposition base class inherited from PyDMD.
 
     Parameters
     ----------
-    svd_rank : int or float, default -1
-        The SVD rank to use for truncation. If a positive integer,
-        the minimum of this number and the maximum possible rank
-        is used. If a float between 0 and 1, the minimum rank to
-        achieve the specified energy content is used. If -1, no
-        truncation is performed.
+    svd_rank : int or float, default 0
+        The rank for the truncation. If 0, the method computes the
+        optimal rank and uses it for truncation. If positive interger, the
+        method uses the argument for the truncation. If float between 0 and 1,
+        the rank is the number of the biggest singular values that are needed
+        to reach the 'energy' specified by `svd_rank`. If -1, the method does
+        not compute truncation.
+    tlsq_rank : int, default 0
+        Rank truncation computing Total Least Square. Default is 0,
+        which means no truncation.
     exact : bool, default False
-        A flag for using exact or projected dynamic modes.
-    opt : bool, default False
-        A flag for using optimal amplitudes or an initial
-        condition fit.
-    sort_method : str {'eigs', 'amps'} or Noneion fit.
-        Mode sorting based on eigenvalues. If 'real', eigenvalues
-        are sorted by their real part. If 'abs', eigenvalues are
-        sorted by their magnitude. If None, no sorting is performed.
+        Flag to compute either exact DMD or projected DMD.
+    opt : bool or int, default False
+        If True, amplitudes are computed like in optimized DMD  (see
+        :func:`~dmdbase.DMDBase._compute_amplitudes` for reference). If
+        False, amplitudes are computed following the standard algorithm. If
+        `opt` is an integer, it is used as the (temporal) index of the snapshot
+        used to compute DMD modes amplitudes (following the standard algorithm).
+        The reconstruction will generally be better in time instants near the
+        chosen snapshot; however increasing `opt` may lead to wrong results when
+        the system presents small eigenvalues. For this reason a manual
+        selection of the number of eigenvalues considered for the analyisis may
+        be needed (check `svd_rank`). Also setting `svd_rank` to a value between
+        0 and 1 may give better results.
+    rescale_mode : {'auto'}, None, or ndarray, default None
+        Scale Atilde as shown in 10.1016/j.jneumeth.2015.10.010 (section 2.4)
+        before computing its eigendecomposition. None means no rescaling,
+        'auto' means automatic rescaling using singular values, otherwise the
+        scaling factors.
+    forward_backward : bool, default False
+        If True, the low-rank operator is computed
+        like in fbDMD (reference: https://arxiv.org/abs/1507.02264).
+    sorted_eigs : {'real', 'abs'} or False, default False
+         Sort eigenvalues (and modes/dynamics accordingly) by
+        magnitude if `sorted_eigs='abs'`, by real part (and then by imaginary
+        part to break ties) if `sorted_eigs='real'`.
     """
 
-    from ._plotting import plot_scree, plot_eigs
-    from ._plotting import plot_modes_1D, plot_dynamics
-    from ._plotting import plot_rankwise_errors, plot_timestep_errors
+    from ._plotting1d import plot_modes_1D, plot_snapshots_1D
+    from ._plotting2d import plot_modes_2D, plot_snapshots_2D
 
     def __init__(self,
-                 svd_rank: SVDRankType = -1,
+                 svd_rank: Union[int, float] = 0,
+                 tlsq_rank: int = 0,
                  exact: bool = False,
-                 opt: bool = False,
-                 sort_method: str = None) -> None:
+                 opt: Union[bool, int] = False,
+                 rescale_mode: Union[str, None, ndarray] = None,
+                 forward_backward: bool = False,
+                 sorted_eigs: Union[bool, str] = False) -> None:
+        super().__init__(svd_rank, tlsq_rank, exact, opt,
+                         rescale_mode, forward_backward, sorted_eigs)
 
-        # General parameters
-        self._svd_rank: SVDRankType = svd_rank
-        self._exact: bool = exact
-        self._opt: bool = opt
-        self._sort_method: str = sort_method
-
-        # Snapshot information
-        self._snapshots: ndarray = None
-        self._snapshots_shape: Tuple[int, int] = None
-
-        # Temporal information
-        self.snapshot_time: dict = None
-        self.dmd_time: dict = None
-
-        # SVD structures
-        self._U: ndarray = None
-        self._Sigma: ndarray = None
-
-        # DMD structures
-        self._b: ndarray = None
-        self._Atilde: ndarray = None
-        self._eigenvectors: ndarray = None
-        self._eigenvalues: ndarray = None
-        self._modes: ndarray = None
-
-    @property
-    def svd_rank(self) -> SVDRankType:
-        """
-        Return the set SVD rank.
-
-        Returns
-        -------
-        float or int
-        """
-        return self._svd_rank
-
-    @property
-    def exact(self) -> bool:
-        """
-        Return the flag for exact or projected modes.
-
-        Returns
-        -------
-        bool
-        """
-        return self._exact
-
-    @property
-    def opt(self) -> bool:
-        """
-        Return the flag for optimized amplitudes.
-
-        Returns
-        -------
-        bool
-        """
-        return self._opt
-
-    @property
-    def sort_method(self) -> str:
-        """
-        Get the eigenvalue sorting option.
-
-        Returns
-        -------
-        str {'real', 'abs'}
-        """
-        return self._sort_method
-
-    @property
-    def snapshots(self) -> ndarray:
-        """
-        Get the snapshots.
-
-        Returns
-        -------
-        ndarray (n_features, n_snapshots)
-        """
-        return self._snapshots
+        self._U: ndarray = None  # svd modes
+        self._Sigma: ndarray = None  # singular values
 
     @property
     def n_snapshots(self) -> int:
@@ -135,7 +86,7 @@ class DMDBase:
         -------
         int
         """
-        return self._snapshots.shape[1]
+        return self.snapshots.shape[1]
 
     @property
     def n_features(self) -> int:
@@ -146,180 +97,61 @@ class DMDBase:
         -------
         int
         """
-        return self._snapshots.shape[0]
+        return self.snapshots.shape[0]
 
     @property
-    def n_modes(self) -> float:
+    def n_modes(self) -> int:
         """
-        Get the number of modes in the expansion.
+        Get the number of DMD modes in the expansion.
 
         Returns
         -------
-        float
+        int
         """
-        return self._modes.shape[1]
-
-    @property
-    def snapshot_timesteps(self) -> ndarray:
-        """
-        Get the snapshot timesteps for the problem.
-
-        Returns
-        -------
-        ndarray (n_snapshots,)
-        """
-        t = np.arange(
-            self.snapshot_time['t0'],
-            self.snapshot_time['tf'] + self.snapshot_time['dt'],
-            self.snapshot_time['dt'])
-        return t[t <= self.snapshot_time['tf']]
-
-    @property
-    def dmd_timesteps(self) -> ndarray:
-        """
-        Get the DMD timesteps for the problem.
-
-        Returns
-        -------
-        ndarray (varies,)
-        """
-        t = np.arange(
-            self.dmd_time['t0'],
-            self.dmd_time['tf'] + self.dmd_time['dt'],
-            self.dmd_time['dt'])
-        return t[t <= self.dmd_time['tf']]
-
-    @property
-    def svd_modes(self) -> ndarray:
-        """
-        Get the POD modes.
-
-        Returns
-        -------
-        ndarray (n_features, rank)
-        """
-        return self._U
+        return self.modes.shape[1]
 
     @property
     def singular_values(self) -> ndarray:
         """
-        Get the singular values.
+        Return the singular values of the snapshots.
 
         Returns
         -------
         ndarray (n_snapshots - 1,)
         """
+        if self._Sigma is None:
+            if self._snapshots is not None:
+                _, self._Sigma, _ = svd(self._snapshots[:, :-1])
         return self._Sigma
 
     @property
-    def operator(self) -> ndarray:
+    def svd_modes(self) -> ndarray:
         """
-        Get the low-rank evolution operator.
-
-        Returns
-        -------
-        ndarray (n_modes, n_modes)
-        """
-        return self._Atilde
-
-    @property
-    def eigenvalues(self) -> ndarray:
-        """
-        Get the eigenvalues of the evolution operator.
-
-        Returns
-        -------
-        ndarray (n_modes,)
-        """
-        return self._eigenvalues
-
-    @property
-    def eigenvectors(self) -> ndarray:
-        """
-        Get the low-rank eigenvectors of the low-rank evolution operator.
-
-        Returns
-        -------
-        ndarray (n_modes, n_modes)
-        """
-        return self._eigenvectors
-
-    @property
-    def amplitudes(self) -> ndarray:
-        """
-        Get the low-rank eigenvectors of the low-rank evolution operator.
-
-        Returns
-        -------
-        ndarray (n_modes,)
-        """
-        return self._b
-
-    @property
-    def omegas(self) -> ndarray:
-        """
-        Get the continuous eigenvalues.
-
-        Returns
-        -------
-        ndarray (rank,)
-        """
-        dt = self.snapshot_time['dt']
-        return np.log(self.eigenvalues, dtype=complex) / dt
-
-    @property
-    def modes(self) -> ndarray:
-        """
-        Get the full-order DMD modes.
+        Return the POD modes from the SVD column-wise.
 
         Returns
         -------
         ndarray (n_features, n_modes)
         """
-        return self._modes
-
-    @property
-    def dynamics(self) -> ndarray:
-        """
-        Return the dynamics operator.
-
-        Returns
-        -------
-        ndarray (n_modes, n_snapshots)
-        """
-        t0, dt = self.snapshot_time['t0'], self.snapshot_time['dt']
-        tmp = np.outer(self.eigenvalues, np.ones(self.dmd_timesteps.shape[0]))
-        tpow = (self.dmd_timesteps - t0) / dt
-        return np.power(tmp, tpow) * self._b[:, None]
-
-    @property
-    def reconstructed_data(self) -> ndarray:
-        """
-        Return the reconstructed data.
-
-        Returns
-        -------
-        ndarray
-        """
-        return self.modes @ self.dynamics
+        return self._U
 
     @property
     def reconstruction_error(self) -> float:
         """
-        Compute the absolute reconstruction error.
+        Compute the relative L^2 reconstruction error.
 
         Returns
         -------
         float
         """
         X: ndarray = self.snapshots
-        X_dmd: ndarray = self.reconstructed_data
-        return norm(X - X_dmd) / norm(X)
+        Xdmd: ndarray = self.reconstructed_data
+        return norm(X - Xdmd) / norm(X)
 
     @property
-    def timestep_errors(self) -> ndarray:
+    def snapshot_reconstruction_errors(self) -> ndarray:
         """
-        Get the reconstruction error per time step.
+        Compute the reconstruction error per snapshot.
 
         Returns
         -------
@@ -327,235 +159,144 @@ class DMDBase:
         """
         X: ndarray = self.snapshots
         Xdmd: ndarray = self.reconstructed_data
-
-        errors = np.zeros(self.n_snapshots)
+        errors = np.empty(self.n_snapshots)
         for t in range(self.n_snapshots):
             errors[t] = norm(X[:, t] - Xdmd[:, t]) / norm(X[:, t])
         return errors
 
-    def fit(self, X: InputType, verbose: bool) -> 'DMDBase':
+    def fit(self, X):
         """
-        Abstract method for fitting the DMD model.
+        Abstract method to fit the snapshots matrices.
+
+        Not implemented, it has to be implemented in subclasses.
         """
         raise NotImplementedError(
-            f'{self.__class__.__name__} must implement the '
-            f'`fit` method.')
+            'Subclass must implement abstract method {}.fit'.format(
+                self.__class__.__name__))
 
-    def _compute_svd(self, X: ndarray) -> SVDOutputType:
+    def plot_singular_values(self,
+                             normalized: bool = True,
+                             logscale: bool = True,
+                             show_rank: bool = False,
+                             filename: str = None) -> None:
         """
-        Compute the SVD of X.
+        Plot the singular value spectrum.
 
         Parameters
         ----------
-        X : ndarray (n_features, n_snapshots - 1)
-            A snapshot matix.
-
-        Returns
-        -------
-        U : ndarray (n_features, n_snapshots - 1)
-            The left singular vectors, or POD modes.
-        s : ndarray (n_snapshots - 1)
-            The singular values.
-        V : ndarray (n_snapshots - 1, n_snapshots - 1)
-            The right singular vectors.
+        normalized : bool, default True
+            Flag for normalizing the spectrum to its max value.
+        logscale : bool, default True
+            Flag for a log scale on the y-axis.
+        show_rank : bool, default False
+            Flag for showing the truncation location.
+        filename : str, default None.
+            A location to save the plot to, if specified.
         """
-        U, s, V = np.linalg.svd(X, full_matrices=False)
-        V = V.conj().T
+        # Format the singular values
+        svals = self.singular_values
+        if normalized:
+            svals /= sum(svals)
 
-        svd_rank = self._svd_rank
-        if 0 < svd_rank < 1:
-            cumulative_energy = np.cumsum(s**2 / sum(s**2))
-            rank = np.searchsorted(cumulative_energy, svd_rank) + 1
-        elif svd_rank >= 1 and isinstance(svd_rank, int):
-            rank = min(svd_rank, U.shape[1])
-        else:
-            rank = X.shape[1]
+        # Define the plotter
+        plotter = plt.semilogy if logscale else plt.plot
 
-        self._Sigma = s
-        self._U = U[:, :rank]
-        return U[:, :rank], s[:rank], V[:, :rank]
+        # Make figure
+        plt.figure()
+        plt.xlabel('n', fontsize=12)
+        plt.ylabel('Singular Value' if not normalized
+                   else 'Relative Singular Value')
+        plotter(svals, '-*b')
+        if show_rank:
+            plt.axvline(self.n_modes - 1, color='r',
+                        ymin=svals.min(), ymax=svals.max())
+        plt.tight_layout()
+        if filename is not None:
+            base, ext = splitext(filename)
+            plt.savefig(base + '.pdf')
 
-    def _compute_operator(self, Y: ndarray, U: ndarray,
-                          s: ndarray, V: ndarray) -> None:
-        """
-        Compute the low-rank evolution operator.
+    def plot_dynamics(self,
+                      mode_indices: List[int] = None,
+                      t: ndarray = None,
+                      plot_imaginary: bool = False,
+                      logscale: bool = False,
+                      filename: str = None) -> None:
+        # Check the inputs
+        if self.modes is None:
+            raise ValueError('The fit method must be performed first.')
 
-        Parameters
-        ----------
-        Y : ndarray (n_features, n_snapshots - 1)
-            The front truncated snapshot matrix.
-        U : ndarray (n_features, n_modes)
-            The left singular vectors.
-        s : ndarray (n_modes,)
-            The singular values.
-        V : ndarray (n_snapshots - 1, n_modes)
-            The left singular vectors.
-        """
-        self._Atilde = U.conj().T @ Y @ V * np.reciprocal(s)
+        if t is None:
+            t = np.arange(0, self.n_snapshots, 1)
 
-    def _decompose_Atilde(self) -> None:
-        """
-        Decompose the low-rank evolution operator.
-        """
-        # Compute decomposition
-        eigvals, eigvecs = np.linalg.eig(self._Atilde)
-        self._eigenvalues = eigvals
-        self._eigenvectors = eigvecs
+        if self.n_snapshots // len(t) != 1:
+            raise ValueError(
+                'There must be the same number of times as snapshots.')
 
-    def _compute_modes(self, Y: ndarray, U: ndarray,
-                       s: ndarray, V: ndarray) -> None:
-        """
-        Compute the full-order DMD modes.
+        if mode_indices is None:
+            mode_indices = list(range(self.n_modes))
+        elif isinstance(mode_indices, int):
+            mode_indices = [mode_indices]
 
-        Parameters
-        ----------
-        Y : ndarray (n_features, n_snapshots - 1)
-            The front truncated snapshot matrix.
-        U : ndarray (n_features, n_modes)
-            The left singular vectors.
-        s : ndarray (n_modes,)
-            The singular values.
-        V : ndarray (n_snapshots - 1, n_modes)
-            The right singular vectors.
-        """
-        if not self.exact:
-            self._modes = U @ self._eigenvectors
-        else:
-            inv_s = np.reciprocal(s)
-            self._modes = Y @ V @ inv_s @ self._eigenvectors
+        # Plot each mode dynamic specified
+        for idx in mode_indices:
+            idx += 0 if idx > 0 else self.n_modes
+            dynamic: ndarray = self.dynamics[idx] / self._b[idx]
+            omega = np.log(self.eigs[idx]) / self.original_time['dt']
 
-    def _compute_amplitudes(self) -> ndarray:
-        """
-        Compute the amplitudes associated with each DMD mode.
+            # Make figure
+            fig: Figure = plt.figure()
+            # Make figure
+            fig: Figure = plt.figure()
+            fig.suptitle(f'DMD Dynamics {idx}\n$\omega$ = '
+                         f'{omega.real:.3e}'
+                         f'{omega.imag:+.3g}', fontsize=12)
+            n_plots = 2 if plot_imaginary else 1
 
-        Returns
-        -------
-        ndarray (rank,)
-        """
-        if not self.opt:
-            b = np.linalg.lstsq(
-                self.modes, self.snapshots.T[0], rcond=None)[0]
-        else:
-            # Compute the Vandermonde matrix
-            W, T = np.meshgrid(self.omegas, self.dmd_timesteps)
-            vander: ndarray = np.exp(np.multiply(W, T)).T
+            # Plot real part
+            real_ax: Axes = fig.add_subplot(1, n_plots, 1)
+            real_ax.set_xlabel('r', fontsize=12)
+            real_ax.set_ylabel('Real', fontsize=12)
+            real_ax.grid(True)
+            real_plotter = real_ax.semilogy if logscale else real_ax.plot
+            real_plotter(t, dynamic.real)
 
-            # Perform SVD on all the snapshots
-            U, s, V = np.linalg.svd(self._snapshots, full_matrices=False)
+            # Plot the imaginary part
+            if plot_imaginary:
+                imag_ax: Axes = fig.add_subplot(1, n_plots, 2)
+                imag_ax.set_xlabel('t', fontsize=12)
+                imag_ax.set_ylabel('Imaginary', fontsize=12)
+                imag_ax.grid(True)
+                imag_plotter = imag_ax.semilogy if logscale else imag_ax.plot
+                imag_plotter(t, dynamic.imag)
 
-            # Construct the LHS matrix
-            PhiStar_Phi = self.modes.conj().T @ self.modes
-            V_VStar_Conj = np.conj(vander @ vander.conj().T)
-            P = PhiStar_Phi * V_VStar_Conj
-
-            # Construct the RHS vector
-            tmp = (U @ np.diag(s) @ V).conj().T
-            q = np.diag(vander @ tmp @ self.modes).conj()
-
-            # Solve Pb = q
-            b = np.linalg.solve(P, q)
-
-        # Enforce positive amplitudes
-        for i in range(len(b)):
-            if b[i].real < 0.0:
-                b[i] *= -1.0
-                self.modes.T[i] *= -1.0
-        return b
-
-    def _sort_modes(self) -> None:
-        """
-        Sort the modes based on sort method.
-        """
-        if self._sort_method in ['eigs', 'amps']:
-            if self._sort_method == 'eigs':
-                ind = np.argsort(self._eigenvalues.real)[::-1]
-            else:
-                ind = np.argsort(self._b.real)[::-1]
-            self._eigenvalues = self._eigenvalues[ind]
-            self._eigenvectors = self._eigenvectors.T[ind].T
-            self._modes = self._modes.T[ind].T
-            self._b = self._b[ind]
-
-    def compute_rankwise_errors(self,
-                                skip: int = 1,
-                                end: int = -1) -> RankErrorType:
-        """
-        Compute the error as a function of rank.
-
-        Parameters
-        ----------
-        skip : int, default 1
-            Interval between ranks to compute errors for. The default
-            is to compute errors at all ranks.
-        end : int, default -1
-            The last rank to compute the error for. The default is to
-            end at the maximum rank.
-
-        Returns
-        -------
-        ndarray (varies,)
-            The ranks used to compute errors.
-        ndarray (varies,)
-            The errors for each rank.
-        """
-        X: ndarray = self._snapshots
-        orig_rank = self._svd_rank
-        if end == -1 or end > min(X.shape) - 1:
-            end = min(X.shape) - 1
-
-        # Compute errors
-        errors, ranks = [], []
-        for r in range(0, end, skip):
-            self._svd_rank = r + 1
-            self.fit(X, False)
-
-            error = self.reconstruction_error.real
-            errors.append(error)
-            ranks.append(r)
-
-        # Reset the model
-        self._svd_rank = orig_rank
-        self.fit(X, False)
-        return ranks, errors
-
-    def get_parameters(self) -> dict:
-        """
-        Get the model parameters from this model.
-
-        Returns
-        -------
-        dict
-        """
-        return {'svd_rank': self._svd_rank, 'exact': self._exact,
-                'opt': self._opt, 'sorted_eigs': self._sort_method}
+            plt.tight_layout()
+            if filename is not None:
+                base, ext = splitext(filename)
+                plt.savefig(base + f'_{idx}.pdf')
 
     @staticmethod
-    def _validate_data(X: InputType) -> Tuple[ndarray, Tuple[int, int]]:
+    def _format_subplots(n_plots: int) -> Tuple[int, int]:
         """
-        Validate the training data.
+        Determine the number of rows and columns for subplots.
 
         Parameters
         ----------
-        X : ndarray or List[ndarray]
-            The training snapshots.
+        n_plots : int
 
         Returns
         -------
-        ndarray (n_features, n_snapshots)
-            The formatted snapshots.
-        Tuple[int, int]
-            The training snapshot shape.
+        int, int : n_rows, n_cols
         """
-        if isinstance(X, ndarray) and X.ndim == 2:
-            snapshots = X
-            snapshots_shape = None
+        if n_plots < 4:
+            n_rows, n_cols = 1, n_plots
+        elif 4 <= n_plots < 9:
+            tmp = int(np.ceil(np.sqrt(n_plots)))
+            n_rows = n_cols = tmp
+            for n in range(1, n_cols + 1):
+                if n * n_cols >= n_plots:
+                    n_rows = n
+                    break
         else:
-            input_shapes = [np.asarray(x).shape for x in X]
-
-            if len(set(input_shapes)) != 1:
-                raise ValueError(
-                    'All snapshots must have the same dimension.')
-
-            snapshots_shape = input_shapes[0]
-            snapshots = np.transpose([np.array(x).flatten() for x in X])
-        return snapshots, snapshots_shape
+            raise AssertionError('Maximum number of subplots is 9. '
+                                 'Consider modifying the visualization.')
+        return n_rows, n_cols
