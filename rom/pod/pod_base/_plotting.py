@@ -154,6 +154,7 @@ def plot_modes_1D(self: 'PODBase',
 
 def plot_coefficients(self: 'PODBase',
                       mode_indices: List[int] = None,
+                      one_plot: bool = True,
                       filename: str = None) -> None:
     """
     Plot the POD coefficients as a function of parameter values.
@@ -188,20 +189,39 @@ def plot_coefficients(self: 'PODBase',
         idx = np.argsort(y)
         y, amplitudes = y[idx], self.amplitudes.T[idx]
 
-        # Plot plot modes
-        for idx in mode_indices:
+        # Plot on one axes
+        if one_plot:
             fig: Figure = plt.figure()
             ax: Axes = fig.add_subplot(111)
-            ax.grid(True)
             ax.set_xlabel('Parameter Value', fontsize=12)
             ax.set_ylabel('POD Coefficient Value', fontsize=12)
-            ax.plot(y, amplitudes[:, idx], '-*', label=f'Mode {idx}')
+            for idx in mode_indices:
+                vals = amplitudes[:, idx] / max(abs(amplitudes[:, idx]))
+                ax.plot(y, vals, '-*', label=f'Mode {idx}')
             ax.legend()
+            ax.grid(True)
 
             plt.tight_layout()
             if filename is not None:
                 basename, ext = splitext(filename)
-                plt.savefig(basename + f'_{idx}.pdf')
+                plt.savefig(basename + '.pdf')
+
+        # Plot separately
+        else:
+
+            for idx in mode_indices:
+                fig: Figure = plt.figure()
+                ax: Axes = fig.add_subplot(111)
+                ax.grid(True)
+                ax.set_xlabel('Parameter Value', fontsize=12)
+                ax.set_ylabel('POD Coefficient Value', fontsize=12)
+                ax.plot(y, amplitudes[:, idx], '-*', label=f'Mode {idx}')
+                ax.legend()
+
+                plt.tight_layout()
+                if filename is not None:
+                    basename, ext = splitext(filename)
+                    plt.savefig(basename + f'_{idx}.pdf')
 
 
 def plot_rankwise_errors(self: 'PODBase', skip: int = 1,
