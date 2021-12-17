@@ -1,6 +1,7 @@
 import numpy as np
 from numpy import ndarray
 from typing import Union
+from copy import deepcopy
 
 from .dmd_base import DMDBase
 
@@ -69,7 +70,7 @@ class DMD(DMDBase):
             self.snapshot_time = {'t0': 0, 'tf': n_snapshots - 1, 'dt': 1}
             self.dmd_time = {'t0': 0, 'tf': n_snapshots - 1, 'dt': 1}
         else:
-            self.dmd_time = self.snapshot_time
+            self.dmd_time = deepcopy(self.snapshot_time)
 
         self._b = self._compute_amplitudes()
         self._sort_modes()
@@ -77,7 +78,7 @@ class DMD(DMDBase):
         if verbose:
             msg = '='*10 + ' DMD Summary ' + '='*10
             header = '='*len(msg)
-            print('\n'.join(['', header, msg, header]))
+            print('\n'.join([header, msg, header]))
             print(f'Number of Modes:\t{self.n_modes}')
             print(f'Reconstruction Error:\t{self.reconstruction_error:.3e}')
             print()

@@ -67,8 +67,8 @@ class DMDBase:
         # DMD structures
         self._b: ndarray = None
         self._Atilde: ndarray = None
-        self._eigenvalues: ndarray = None
         self._eigenvectors: ndarray = None
+        self._eigenvalues: ndarray = None
         self._modes: ndarray = None
 
     @property
@@ -135,7 +135,7 @@ class DMDBase:
         -------
         int
         """
-        return self.snapshots.shape[1]
+        return self._snapshots.shape[1]
 
     @property
     def n_features(self) -> int:
@@ -146,7 +146,7 @@ class DMDBase:
         -------
         int
         """
-        return self.snapshots.shape[0]
+        return self._snapshots.shape[0]
 
     @property
     def n_modes(self) -> float:
@@ -157,7 +157,7 @@ class DMDBase:
         -------
         float
         """
-        return self.modes.shape[1]
+        return self._modes.shape[1]
 
     @property
     def snapshot_timesteps(self) -> ndarray:
@@ -168,10 +168,11 @@ class DMDBase:
         -------
         ndarray (n_snapshots,)
         """
-        return np.arange(
+        t = np.arange(
             self.snapshot_time['t0'],
             self.snapshot_time['tf'] + self.snapshot_time['dt'],
             self.snapshot_time['dt'])
+        return t[t <= self.snapshot_time['tf']]
 
     @property
     def dmd_timesteps(self) -> ndarray:
@@ -182,13 +183,14 @@ class DMDBase:
         -------
         ndarray (varies,)
         """
-        return np.arange(
+        t = np.arange(
             self.dmd_time['t0'],
             self.dmd_time['tf'] + self.dmd_time['dt'],
             self.dmd_time['dt'])
+        return t[t <= self.dmd_time['tf']]
 
     @property
-    def pod_modes(self) -> ndarray:
+    def svd_modes(self) -> ndarray:
         """
         Get the POD modes.
 
@@ -266,28 +268,6 @@ class DMDBase:
         return np.log(self.eigenvalues, dtype=complex) / dt
 
     @property
-    def growth_rate(self) -> ndarray:
-        """
-        Get the growth rate from the continuous eigenvalues.
-
-        Returns
-        -------
-        ndarray (rank,)
-        """
-        return self.omegas.real
-
-    @property
-    def frequencies(self) -> ndarray:
-        """
-        Get the frequency from the continuous eigenvalues.
-
-        Returns
-        -------
-        ndarray (rank,)
-        """
-        return self.omegas.imag / (2.0 * np.pi)
-
-    @property
     def modes(self) -> ndarray:
         """
         Get the full-order DMD modes.
@@ -307,9 +287,10 @@ class DMDBase:
         -------
         ndarray (n_modes, n_snapshots)
         """
-        t0 = self.snapshot_time['t0']
-        exp_arg = np.outer(self.omegas, self.dmd_timesteps - t0)
-        return np.exp(exp_arg) * self._b[:, None]
+        t0, dt = self.snapshot_time['t0'], self.snapshot_time['dt']
+        tmp = np.outer(self.eigenvalues, np.ones(self.dmd_timesteps.shape[0]))
+        tpow = (self.dmd_timesteps - t0) / dt
+        return np.power(tmp, tpow) * self._b[:, None]
 
     @property
     def reconstructed_data(self) -> ndarray:
@@ -456,17 +437,16 @@ class DMDBase:
                 self.modes, self.snapshots.T[0], rcond=None)[0]
         else:
             # Compute the Vandermonde matrix
-            vander: ndarray = np.exp(
-                np.multiply(*np.meshgrid(
-                    self.omegas, self.dmd_timesteps))).T
+            W, T = np.meshgrid(self.omegas, self.dmd_timesteps)
+            vander: ndarray = np.exp(np.multiply(W, T)).T
 
             # Perform SVD on all the snapshots
             U, s, V = np.linalg.svd(self._snapshots, full_matrices=False)
 
             # Construct the LHS matrix
             PhiStar_Phi = self.modes.conj().T @ self.modes
-            V_VStar_Conj = vander @ vander.conj().T
-            P = PhiStar_Phi @ V_VStar_Conj
+            V_VStar_Conj = np.conj(vander @ vander.conj().T)
+            P = PhiStar_Phi * V_VStar_Conj
 
             # Construct the RHS vector
             tmp = (U @ np.diag(s) @ V).conj().T
