@@ -86,7 +86,7 @@ for n, title, d in zip(range(131, 134), titles, data):
 plt.tight_layout()
 
 # =================================== Plot DMD modes
-fig = plt.figure(2, figsize=(8, 6))
+fig = plt.figure(figsize=(8, 6))
 f = [f1, f2]
 for i, n in enumerate(range(121, 123)):
     signal = f[i](grid, 0.0).real
@@ -112,6 +112,4 @@ for i, n in enumerate(range(121, 123)):
     plt.grid(True)
 plt.tight_layout()
 
-path = os.path.dirname(os.path.realpath(__file__))
-plt.savefig(path + '/test1_dmd_pod_modes.pdf')
 plt.show()

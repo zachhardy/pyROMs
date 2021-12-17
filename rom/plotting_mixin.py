@@ -111,7 +111,6 @@ class PlottingMixin:
 
         # Plot each mode specified
         for idx in mode_indices:
-            print(idx)
             idx += 0 if idx >= 0 else self.n_modes
             mode: ndarray = self.modes[:, idx]
 
