@@ -9,14 +9,13 @@ from matplotlib.figure import Figure
 from matplotlib.axes import Axes
 
 from os.path import splitext
-from typing import Union, List, Tuple
+from typing import Union, List
 
-from pyPDEs.utilities import Vector
-
+from ..base import ROMBase
 from pydmd.dmdbase import DMDBase as PyDMDBase
 
 
-class DMDBase(PyDMDBase):
+class DMDBase(PyDMDBase, ROMBase):
     """
     Dynamic Mode Decomposition base class inherited from PyDMD.
 
@@ -60,9 +59,6 @@ class DMDBase(PyDMDBase):
         part to break ties) if `sorted_eigs='real'`.
     """
 
-    from ._plotting1d import plot_modes_1D, plot_snapshots_1D
-    from ._plotting2d import plot_modes_2D, plot_snapshots_2D
-
     def __init__(self,
                  svd_rank: Union[int, float] = 0,
                  tlsq_rank: int = 0,
@@ -71,44 +67,12 @@ class DMDBase(PyDMDBase):
                  rescale_mode: Union[str, None, ndarray] = None,
                  forward_backward: bool = False,
                  sorted_eigs: Union[bool, str] = False) -> None:
-        super().__init__(svd_rank, tlsq_rank, exact, opt,
-                         rescale_mode, forward_backward, sorted_eigs)
+        ROMBase.__init__(self)
+        PyDMDBase.__init__(self, svd_rank, tlsq_rank, exact, opt,
+                           rescale_mode, forward_backward, sorted_eigs)
 
         self._U: ndarray = None  # svd modes
-        self._Sigma: ndarray = None  # singular values
-
-    @property
-    def n_snapshots(self) -> int:
-        """
-        Get the number of snapshots.
-
-        Returns
-        -------
-        int
-        """
-        return self.snapshots.shape[1]
-
-    @property
-    def n_features(self) -> int:
-        """
-        Get the number of features in each snapshot.
-
-        Returns
-        -------
-        int
-        """
-        return self.snapshots.shape[0]
-
-    @property
-    def n_modes(self) -> int:
-        """
-        Get the number of DMD modes in the expansion.
-
-        Returns
-        -------
-        int
-        """
-        return self.modes.shape[1]
+        self._Sigma: ndarray = None  # singular valueså
 
     @property
     def singular_values(self) -> ndarray:
@@ -173,47 +137,6 @@ class DMDBase(PyDMDBase):
         raise NotImplementedError(
             'Subclass must implement abstract method {}.fit'.format(
                 self.__class__.__name__))
-
-    def plot_singular_values(self,
-                             normalized: bool = True,
-                             logscale: bool = True,
-                             show_rank: bool = False,
-                             filename: str = None) -> None:
-        """
-        Plot the singular value spectrum.
-
-        Parameters
-        ----------
-        normalized : bool, default True
-            Flag for normalizing the spectrum to its max value.
-        logscale : bool, default True
-            Flag for a log scale on the y-axis.
-        show_rank : bool, default False
-            Flag for showing the truncation location.
-        filename : str, default None.
-            A location to save the plot to, if specified.
-        """
-        # Format the singular values
-        svals = self.singular_values
-        if normalized:
-            svals /= sum(svals)
-
-        # Define the plotter
-        plotter = plt.semilogy if logscale else plt.plot
-
-        # Make figure
-        plt.figure()
-        plt.xlabel('n', fontsize=12)
-        plt.ylabel('Singular Value' if not normalized
-                   else 'Relative Singular Value')
-        plotter(svals, '-*b')
-        if show_rank:
-            plt.axvline(self.n_modes - 1, color='r',
-                        ymin=svals.min(), ymax=svals.max())
-        plt.tight_layout()
-        if filename is not None:
-            base, ext = splitext(filename)
-            plt.savefig(base + '.pdf')
 
     def plot_dynamics(self,
                       mode_indices: List[int] = None,

@@ -12,10 +12,12 @@ from os.path import splitext
 
 from typing import Union, Tuple, List
 
+from ..base import ROMBase
+
 SVDOutputType = Tuple[ndarray, ndarray, ndarray]
 
 
-class PODBase:
+class PODBase(ROMBase):
     """
     Principal Orthogonal Decomposition base class.
 
@@ -29,10 +31,8 @@ class PODBase:
         truncation is performed.
     """
 
-    from ._plotting1d import plot_modes_1D, plot_snapshots_1D
-    from ._plotting2d import plot_modes_2D, plot_snapshots_2D
-
     def __init__(self, svd_rank: Union[int, float] = -1) -> None:
+        ROMBase.__init__(self)
 
         self._svd_rank: Union[int, float] = svd_rank
 
@@ -221,53 +221,6 @@ class PODBase:
         self._U = U
         self._Sigma = s
         return U[:, :rank], s[:rank], V[:, :rank]
-
-    @staticmethod
-    def _col_major_2darray(X) -> Tuple[ndarray, Tuple[int, int]]:
-        """
-        Private method that takes as input the snapshots and stores them into a
-        2D matrix, by column. If the input data is already formatted as 2D
-        array, the method saves it, otherwise it also saves the original
-        snapshots shape and reshapes the snapshots.
-
-        Parameters
-        ----------
-        X : ndarray or List[ndarray]
-            The input snapshots.
-
-        Returns
-        -------
-        ndarray : 2D matrix containing flattened snapshots
-        Tuple[int, int] : The shape of the original snapshots.
-
-        :param X: the input snapshots.
-        :type X: int or numpy.ndarray
-        :return: the 2D matrix that contains the flatten snapshots, the shape
-            of original snapshots.
-        :rtype: numpy.ndarray, tuple
-        """
-        # If the data is already 2D ndarray
-        if isinstance(X, np.ndarray) and X.ndim == 2:
-            snapshots = X
-            snapshots_shape = None
-        else:
-            input_shapes = [np.asarray(x).shape for x in X]
-
-            if len(set(input_shapes)) != 1:
-                raise ValueError('Snapshots have not the same dimension.')
-
-            snapshots_shape = input_shapes[0]
-            snapshots = np.transpose([np.asarray(x).flatten() for x in X])
-
-        # check condition number of the data passed in
-        cond_number = np.linalg.cond(snapshots)
-        if cond_number > 10e4:
-            warnings.warn(
-                "Input data matrix X has condition number {}. "
-                "Consider preprocessing data, passing in augmented data matrix, or regularization methods."
-                    .format(cond_number))
-
-        return snapshots, snapshots_shape
 
     def plot_singular_values(self,
                              normalized: bool = True,

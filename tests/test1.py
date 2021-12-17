@@ -51,11 +51,13 @@ plt.tight_layout()
 dmd = DMD(svd_rank=2)
 dmd.fit(X)
 X_dmd = dmd.reconstructed_data.real
+dmd.plot_modes_1D()
 
 # =================================== Fit a POD model
 pod = POD(svd_rank=2)
-pod.fit(X)
+pod.fit(X, times)
 X_pod = pod.reconstructed_data.real
+pod.plot_modes_1D()
 
 # =================================== Plot DMD results
 fig = plt.figure(figsize=(12, 6))

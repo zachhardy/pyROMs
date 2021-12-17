@@ -9,20 +9,21 @@ from os.path import splitext
 
 from pyPDEs.utilities import Vector
 
-from ...utils import format_subplots
+from ..utils import format_subplots
 
-from typing import List, TYPE_CHECKING
+from typing import List
+from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from . import DMDBase
+    from . import ROMBase
 
 
-def plot_modes_2D(self: 'DMDBase',
+def plot_modes_2D(self: 'ROMBase',
                   mode_indices: List[int] = None,
                   components: List[int] = None,
                   grid: List[Vector] = None,
                   filename: str = None) -> None:
     """
-    Plot 2D DMD modes.
+    Plot 2D modes.
 
     Parameters
     ----------
@@ -76,19 +77,17 @@ def plot_modes_2D(self: 'DMDBase',
 
     # Plot each mode specified
     for idx in mode_indices:
-        idx += 0 if idx > 0 else self.n_modes
+        idx += 0 if idx >= 0 else self.n_modes
         mode: ndarray = self.modes[:, idx]
         omega = np.log(self.eigs[idx]) / self.original_time['dt']
 
         # Make figure
         fig: Figure = plt.figure()
-        fig.suptitle(f'DMD Mode {idx}\n$\omega$ = '
-                     f'{omega.real:.3e}'
-                     f'{omega.imag:+.3g}', fontsize=12)
+        fig.suptitle(f'Mode {idx}', fontsize=12)
 
         # Plot each component specified
         for i, c in enumerate(components):
-            c += 0 if c > 0 else n_components
+            c += 0 if c >= 0 else n_components
             vals = mode[c::n_components].reshape(X.shape)
 
             # Create subplot
@@ -109,7 +108,7 @@ def plot_modes_2D(self: 'DMDBase',
             plt.savefig(base + f'_{idx}.pdf')
 
 
-def plot_snapshots_2D(self: 'DMDBase',
+def plot_snapshots_2D(self: 'ROMBase',
                       snapshot_indices: List[int] = None,
                       components: List[int] = None,
                       grid: List[Vector] = None,
@@ -169,7 +168,7 @@ def plot_snapshots_2D(self: 'DMDBase',
 
     # Plot each mode specified
     for idx in snapshot_indices:
-        idx += 0 if idx > 0 else self.n_snapshots
+        idx += 0 if idx >= 0 else self.n_snapshots
         snapshot: ndarray = self.snapshots[:, idx]
 
         # Make figure
@@ -178,7 +177,7 @@ def plot_snapshots_2D(self: 'DMDBase',
 
         # Plot each component specified
         for i, c in enumerate(components):
-            c += 0 if c > 0 else n_components
+            c += 0 if c >= 0 else n_components
             vals = snapshot[c::n_components].reshape(X.shape)
 
             # Create subplot

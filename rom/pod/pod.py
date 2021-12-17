@@ -17,12 +17,13 @@ TestData = Union[float, ndarray]
 
 
 class POD(PODBase):
-    """Principal Orthogonal Decomposition class.
+    """
+    Proper Orthogonal Decomposition.
     """
 
-    def fit(self, X: ndarray, Y: ndarray = None,
-            verbose: bool = True) -> None:
-        """Compute the POD of the inupt data.
+    def fit(self, X: ndarray, Y: ndarray = None) -> None:
+        """
+        Compute the POD of the inupt data.
 
         Parameters
         ----------
@@ -32,26 +33,21 @@ class POD(PODBase):
             The training parameters stored row-wise.
         verbose : bool, default False
         """
-        X, Xshape, Y = self._validate_data(X, Y)
+        X, Xshape = self._col_major_2darray(X)
         self._snapshots = X
         self._snapshots_shape = Xshape
+
+        if Y.shape[0] != X.shape[1]:
+            raise ValueError('The number of parameter sets must '
+                             'match the number of snapshots.')
         self._parameters = Y
 
         # Perform the SVD
-        U, s, V = self._compute_svd()
+        U, s, V = self._compute_svd(X, self._svd_rank)
         self._modes = U
 
         # Compute amplitudes
         self._b = self.transform(X)
-
-        # Print summary
-        if verbose:
-            msg = '=' * 10 + ' POD Summary ' + '=' * 10
-            header = '=' * len(msg)
-            print('\n'.join(['', header, msg, header]))
-            print(f'Number of Modes:\t{self.n_modes}')
-            print(f'Reconstruction Error:\t{self.reconstruction_error:.3e}')
-            print()
 
     def transform(self, X: ndarray) -> ndarray:
         """
@@ -67,16 +63,16 @@ class POD(PODBase):
         ndarray (n_modes, n_snapshots)
             The low-rank representation of X.
         """
-        if self._modes is None:
+        if self.modes is None:
             raise AssertionError('The POD model must be fit.')
 
         if X.shape[0] != self.n_features:
             raise AssertionError(
                 'The number of features must match the number '
                 'of features in the training data.')
-        return self._modes.T @ X
+        return self.modes.T @ X
 
-    def predict(self, Y: ndarray, method: str = 'cubic') -> ndarray:
+    def predict(self, Y: ndarray, method: str = 'linear') -> ndarray:
         """
         Predict a full-order result for a set of parameters.
 
@@ -93,13 +89,13 @@ class POD(PODBase):
         """
         if Y.shape[1] != self.n_parameters:
             raise ValueError(
-                'Y must have the same number of parameters as '
-                'the training data.')
+                'The number of parameters per query must match '
+                'the number of parameters per snapshot.')
 
         amplitudes = self._interpolate(Y, method)
         return self._modes @ amplitudes
 
-    def _interpolate(self, Y: ndarray, method: str = 'cubic') -> ndarray:
+    def _interpolate(self, Y: ndarray, method: str) -> ndarray:
         """
         Interpolate POD mode amplitudes.
 
@@ -107,7 +103,7 @@ class POD(PODBase):
         ----------
         Y : ndarray (n_snapshots, n_parameters)
             The query parameters.
-        method : str {'linear', 'cubic', 'nearest'}, default 'cubic'
+        method : str {'linear', 'cubic', 'nearest'}
             The prediction method to use.
 
         Returns

@@ -27,3 +27,5 @@ def format_subplots(n_plots: int) -> Tuple[int, int]:
         raise AssertionError('Maximum number of subplots is 9. '
                              'Consider modifying the visualization.')
     return n_rows, n_cols
+
+
