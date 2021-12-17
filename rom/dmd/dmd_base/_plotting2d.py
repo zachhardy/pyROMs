@@ -9,6 +9,8 @@ from os.path import splitext
 
 from pyPDEs.utilities import Vector
 
+from ...utils import format_subplots
+
 from typing import List, TYPE_CHECKING
 if TYPE_CHECKING:
     from . import DMDBase
@@ -70,7 +72,7 @@ def plot_modes_2D(self: 'DMDBase',
         components = [components]
 
     # Determine the subplot dimensions
-    n_rows, n_cols = self._format_subplots(len(components))
+    n_rows, n_cols = format_subplots(len(components))
 
     # Plot each mode specified
     for idx in mode_indices:
@@ -113,7 +115,7 @@ def plot_snapshots_2D(self: 'DMDBase',
                       grid: List[Vector] = None,
                       filename: str = None) -> None:
     """
-    Plot 2D DMD modes.
+    Plot 2D snapshots.
 
     Parameters
     ----------
@@ -163,7 +165,7 @@ def plot_snapshots_2D(self: 'DMDBase',
         components = [components]
 
     # Determine the subplot dimensions
-    n_rows, n_cols = self._format_subplots(len(components))
+    n_rows, n_cols = format_subplots(len(components))
 
     # Plot each mode specified
     for idx in snapshot_indices:
