@@ -1,8 +1,5 @@
-import numpy as np
-
 from numpy import ndarray
-from typing import Union
-from copy import deepcopy
+from typing import Union, Iterable
 
 from .dmd_base import DMDBase
 from pydmd.dmd import DMD as PyDMD
@@ -64,34 +61,3 @@ class DMD(DMDBase, PyDMD):
         DMDBase.__init__(self, svd_rank, tlsq_rank, exact, opt,
                          rescale_mode, forward_backward, sorted_eigs)
 
-    def fit(self, X: ndarray, verbose: bool = True) -> 'DMD':
-        """
-        Fit the traditional DMD model.
-
-        Parameters
-        ----------
-        X : ndarray (n_features, n_snapshots)
-            The snapshot matrix.
-        verbose : bool, default True
-            Flag for printing DMD summary.
-
-        Returns
-        -------
-        self
-        """
-        self._snapshots, self._snapshots_shape = self._col_major_2darray(X)
-
-        n_samples = self._snapshots.shape[1]
-        X = self._snapshots[:, :-1]
-        Y = self._snapshots[:, 1:]
-
-        X, Y = compute_tlsq(X, Y, self.tlsq_rank)
-        self._U, _, _ = self.operator.compute_operator(X, Y)
-
-        # Default timesteps
-        self.original_time = {'t0': 0, 'tend': n_samples - 1, 'dt': 1}
-        self.dmd_time = {'t0': 0, 'tend': n_samples - 1, 'dt': 1}
-
-        self._b = self._compute_amplitudes()
-
-        return self

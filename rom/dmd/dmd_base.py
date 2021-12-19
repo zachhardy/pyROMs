@@ -9,7 +9,7 @@ from matplotlib.figure import Figure
 from matplotlib.axes import Axes
 
 from os.path import splitext
-from typing import Union, List
+from typing import Union, List, Iterable
 
 from ..plotting_mixin import PlottingMixin
 from pydmd.dmdbase import DMDBase as PyDMDBase
@@ -70,71 +70,36 @@ class DMDBase(PyDMDBase, PlottingMixin):
         PyDMDBase.__init__(self, svd_rank, tlsq_rank, exact, opt,
                            rescale_mode, forward_backward, sorted_eigs)
 
-        self._U: ndarray = None  # svd modes
-        self._Sigma: ndarray = None  # singular values
+        self._svd_modes: ndarray = None  # svd modes
+        self._svd_vals: ndarray = None  # singular values
 
     @property
     def n_snapshots(self) -> int:
-        """
-        Get the number of snapshots.
-
-        Returns
-        -------
-        int
-        """
         return self.snapshots.shape[1]
 
     @property
     def n_features(self) -> int:
-        """
-        Get the number of features in each snapshot.
-
-        Returns
-        -------
-        int
-        """
         return self.snapshots.shape[0]
 
     @property
     def n_modes(self) -> int:
-        """
-        Get the number of modes.
-
-        Returns
-        -------
-        int
-        """
         return self.modes.shape[1]
 
     @property
     def singular_values(self) -> ndarray:
-        """
-        Return the singular values of the snapshots.
-
-        Returns
-        -------
-        ndarray (n_snapshots - 1,)
-        """
-        if self._Sigma is None:
+        if self._svd_vals is None:
             if self._snapshots is not None:
-                _, self._Sigma, _ = svd(self._snapshots[:, :-1])
-        return self._Sigma
+                _, self._svd_vals, _ = svd(self._snapshots[:, :-1])
+        return self._svd_vals
 
     @property
     def svd_modes(self) -> ndarray:
-        """
-        Return the POD modes from the SVD column-wise.
-
-        Returns
-        -------
-        ndarray (n_features, n_modes)
-        """
-        return self._U
+        return self._svd_modes
 
     @property
     def reconstruction_error(self) -> float:
         """
-        Compute the relative L^2 reconstruction error.
+        Compute the reconstruction error over the snapshots.
 
         Returns
         -------
@@ -147,7 +112,7 @@ class DMDBase(PyDMDBase, PlottingMixin):
     @property
     def snapshot_reconstruction_errors(self) -> ndarray:
         """
-        Compute the reconstruction error per snapshot.
+        Compute the reconstruction error at each snapshot.
 
         Returns
         -------
@@ -160,7 +125,7 @@ class DMDBase(PyDMDBase, PlottingMixin):
             errors[t] = norm(X[:, t] - Xdmd[:, t]) / norm(X[:, t])
         return errors
 
-    def fit(self, X):
+    def fit(self, X: Union[ndarray, Iterable]):
         """
         Abstract method to fit the snapshots matrices.
 
@@ -172,20 +137,26 @@ class DMDBase(PyDMDBase, PlottingMixin):
 
     def plot_dynamics(self,
                       mode_indices: List[int] = None,
-                      t: ndarray = None,
-                      plot_imaginary: bool = False,
                       logscale: bool = False,
                       filename: str = None) -> None:
+        """
+        Plot the dynamics behaviors of the modes at the DMD timesteps.
+
+        Parameters
+        ----------
+        mode_indices : List[int], default None
+            The indices of the modes to plot. The default behavior
+            is to plot all modes.
+        logscale : bool, default False
+            Flag for plotting on a logscale
+        filename : str, default None
+            A location to save the plot to, if specified.
+        """
         # Check the inputs
         if self.modes is None:
             raise ValueError('The fit method must be performed first.')
 
-        if t is None:
-            t = np.arange(0, self.n_snapshots, 1)
-
-        if self.n_snapshots // len(t) != 1:
-            raise ValueError(
-                'There must be the same number of times as snapshots.')
+        t = self.dmd_timesteps
 
         if mode_indices is None:
             mode_indices = list(range(self.n_modes))
@@ -200,32 +171,43 @@ class DMDBase(PyDMDBase, PlottingMixin):
 
             # Make figure
             fig: Figure = plt.figure()
-            # Make figure
-            fig: Figure = plt.figure()
             fig.suptitle(f'DMD Dynamics {idx}\n$\omega$ = '
                          f'{omega.real:.3e}'
                          f'{omega.imag:+.3g}', fontsize=12)
-            n_plots = 2 if plot_imaginary else 1
 
-            # Plot real part
-            real_ax: Axes = fig.add_subplot(1, n_plots, 1)
-            real_ax.set_xlabel('r', fontsize=12)
-            real_ax.set_ylabel('Real', fontsize=12)
-            real_ax.grid(True)
-            real_plotter = real_ax.semilogy if logscale else real_ax.plot
-            real_plotter(t, dynamic.real)
-
-            # Plot the imaginary part
-            if plot_imaginary:
-                imag_ax: Axes = fig.add_subplot(1, n_plots, 2)
-                imag_ax.set_xlabel('t', fontsize=12)
-                imag_ax.set_ylabel('Imaginary', fontsize=12)
-                imag_ax.grid(True)
-                imag_plotter = imag_ax.semilogy if logscale else imag_ax.plot
-                imag_plotter(t, dynamic.imag)
+            # Plot the dynamics
+            ax: Axes = fig.add_subplot(1, 1, 1)
+            ax.set_xlabel('t', fontsize=12)
+            ax.set_ylabel('Real', fontsize=12)
+            plotter = ax.semilogy if logscale else ax.plot
+            plotter(t, dynamic.real)
 
             plt.tight_layout()
             if filename is not None:
                 base, ext = splitext(filename)
                 plt.savefig(base + f'_{idx}.pdf')
+
+    @PyDMDBase.svd_rank.setter
+    def svd_rank(self, value: Union[float, int]) -> None:
+        self.operator._svd_rank = value
+
+    @PyDMDBase.tlsq_rank.setter
+    def tlsq_rank(self, value: int) -> None:
+        self._tlsq_rank = value
+
+    @PyDMDBase.exact.setter
+    def exact(self, value: bool) -> None:
+        self.operator._exact = value
+
+    @PyDMDBase.opt.setter
+    def opt(self, value: Union[bool, int]) -> None:
+        self._opt = value
+
+    @PyDMDBase.rescale_mode.setter
+    def rescale_mode(self, value: Union[str, None, ndarray]) -> None:
+        self.operator._rescale_mode = value
+
+    @PyDMDBase.forward_backward.setter
+    def forward_backward(self, value: bool) -> None:
+        self.operator._forward_backward = value
 
