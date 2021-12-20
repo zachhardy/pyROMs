@@ -73,6 +73,30 @@ class DMDBase(PyDMDBase, PlottingMixin):
         self._svd_modes: ndarray = None  # svd modes
         self._svd_vals: ndarray = None  # singular values
 
+    @PyDMDBase.svd_rank.setter
+    def svd_rank(self, value: Union[float, int]) -> None:
+        self.operator._svd_rank = value
+
+    @PyDMDBase.tlsq_rank.setter
+    def tlsq_rank(self, value: int) -> None:
+        self._tlsq_rank = value
+
+    @PyDMDBase.exact.setter
+    def exact(self, value: bool) -> None:
+        self.operator._exact = value
+
+    @PyDMDBase.opt.setter
+    def opt(self, value: Union[bool, int]) -> None:
+        self._opt = value
+
+    @PyDMDBase.rescale_mode.setter
+    def rescale_mode(self, value: Union[str, None, ndarray]) -> None:
+        self.operator._rescale_mode = value
+
+    @PyDMDBase.forward_backward.setter
+    def forward_backward(self, value: bool) -> None:
+        self.operator._forward_backward = value
+
     @property
     def n_snapshots(self) -> int:
         return self.snapshots.shape[1]
@@ -186,27 +210,3 @@ class DMDBase(PyDMDBase, PlottingMixin):
             if filename is not None:
                 base, ext = splitext(filename)
                 plt.savefig(base + f'_{idx}.pdf')
-
-    @PyDMDBase.svd_rank.setter
-    def svd_rank(self, value: Union[float, int]) -> None:
-        self.operator._svd_rank = value
-
-    @PyDMDBase.tlsq_rank.setter
-    def tlsq_rank(self, value: int) -> None:
-        self._tlsq_rank = value
-
-    @PyDMDBase.exact.setter
-    def exact(self, value: bool) -> None:
-        self.operator._exact = value
-
-    @PyDMDBase.opt.setter
-    def opt(self, value: Union[bool, int]) -> None:
-        self._opt = value
-
-    @PyDMDBase.rescale_mode.setter
-    def rescale_mode(self, value: Union[str, None, ndarray]) -> None:
-        self.operator._rescale_mode = value
-
-    @PyDMDBase.forward_backward.setter
-    def forward_backward(self, value: bool) -> None:
-        self.operator._forward_backward = value
