@@ -61,3 +61,5 @@ class DMD(DMDBase, PyDMD):
         DMDBase.__init__(self, svd_rank, tlsq_rank, exact, opt,
                          rescale_mode, forward_backward, sorted_eigs)
 
+    def fit(self, X: Union[ndarray, Iterable]) -> 'DMD':
+        return PyDMD.fit(self, X)

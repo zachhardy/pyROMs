@@ -39,7 +39,10 @@ class PartitionedDMD(DMDBase):
         self.dmd_list: List[DMDBase] = []
 
         self.partition_points: List[int] = partition_points
-        self.options: List[tuple] = options
+        self.options: List[dict] = options
+
+        self._original_time: dict = None
+        self._dmd_time: dict = None
 
         # Define partition boundaries
         pb = [0] + partition_points + [-1]
@@ -54,6 +57,14 @@ class PartitionedDMD(DMDBase):
     @property
     def n_partitions(self) -> int:
         return len(self.partition_points) + 1
+
+    @property
+    def original_time(self) -> dict:
+        return self._original_time
+
+    @property
+    def dmd_time(self) -> dict:
+        return self._dmd_time
 
     @property
     def svd_rank(self) -> List[Union[int, float]]:
@@ -79,6 +90,20 @@ class PartitionedDMD(DMDBase):
     def forward_backward(self) -> List[bool]:
         return [dmd.forward_backward for dmd in self]
 
+    @property
+    def reconstructed_data(self) -> ndarray:
+        """
+        Return the reconstructed data.
+
+        Returns
+        -------
+        ndarray (n_features, n_snapshots)
+        """
+        for p in range(self.n_partitions):
+            Xp = self.dmd_list[p].reconstructed_data
+            X = Xp if p == 0 else np.hstack((X, Xp))
+        return X
+
     def partial_modes(self, partition: int) -> ndarray:
         """
         Return the modes for the specific `partition`.
@@ -92,6 +117,7 @@ class PartitionedDMD(DMDBase):
         -------
         ndarray (n_features, n_modes[partition])
         """
+        self._check_partition(partition)
         return self.dmd_list[partition].modes
 
     def partial_dynamics(self, partition: int) -> ndarray:
@@ -107,6 +133,7 @@ class PartitionedDMD(DMDBase):
         -------
         ndarray (n_modes[partition], n_snapshots[partition])
         """
+        self._check_partition(partition)
         return self.dmd_list[partition].dynamics
 
     def partial_eigs(self, partition: int) -> ndarray:
@@ -137,7 +164,52 @@ class PartitionedDMD(DMDBase):
         -------
         ndarray (n_features, n_snapshots[partition])
         """
+        self._check_partition(partition)
         return self.dmd_list[partition].reconstructed_data
+
+    def partial_reconstruction_error(self, partition: int) -> float:
+        """
+        Return the reconstruction error over the specified `partition`.
+
+        Parameters
+        ----------
+        partition : int
+            The partition index.
+
+        Returns
+        -------
+        float
+        """
+        self._check_partition(partition)
+        return self.dmd_list[partition].reconstruction_error
+
+    def partial_time_interval(self, partition: int) -> dict:
+        """
+        Return a dictionary containing the time information for
+        the specified `partition`.
+
+        Parameters
+        ----------
+        partition : int
+            The partition index.
+
+        Returns
+        -------
+        dict
+        """
+        self._check_partition(partition)
+        if partition == 0:
+            return self.dmd_list[partition].original_time
+        else:
+            t0 = 0
+            for p in range(partition):
+                dmd = self.dmd_list[p]
+                period = dmd.original_time['tend'] - dmd.original_time['t0']
+                t0 += period + 1
+
+            dmd = self.dmd_list[partition]
+            period = dmd.original_time['tend'] - dmd.original_time['t0']
+            return {'t0': t0, 'tend': t0 + period, 'dt': 1}
 
     def fit(self, X: Union[ndarray, Iterable]) -> 'PartitionedDMD':
         """
@@ -182,6 +254,8 @@ class PartitionedDMD(DMDBase):
             # Shift the start point
             start = end + 1
 
+        self._original_time = {'t0': 0, 'tend': self.n_snapshots, 'dt': 1}
+        self._dmd_time = self.original_time.copy()
         return self
 
     def _build_partitions(self) -> None:
@@ -196,3 +270,17 @@ class PartitionedDMD(DMDBase):
                     if hasattr(dmd, key):
                         setattr(dmd, key, val)
             self.dmd_list.append(dmd)
+
+    def _check_partition(self, partition: int) -> None:
+        """
+        Check the partition index.
+
+        Parameters
+        ----------
+        partition : int
+            The partition index.
+        """
+        if partition >= self.n_partitions:
+            raise ValueError(
+                f'The partition parameter ({partition}) must be less than '
+                f'the total number of partions ({self.n_partitions}).')
