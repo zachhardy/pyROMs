@@ -210,4 +210,3 @@ class DMDBase(PyDMDBase, PlottingMixin):
     @PyDMDBase.forward_backward.setter
     def forward_backward(self, value: bool) -> None:
         self.operator._forward_backward = value
-
