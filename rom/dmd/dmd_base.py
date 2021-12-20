@@ -15,7 +15,7 @@ from ..plotting_mixin import PlottingMixin
 from pydmd.dmdbase import DMDBase as PyDMDBase
 
 
-class DMDBase(PyDMDBase, PlottingMixin):
+class DMDBase(PlottingMixin, PyDMDBase):
     """
     Dynamic Mode Decomposition base class inherited from PyDMD.
 
