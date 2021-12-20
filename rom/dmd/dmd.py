@@ -3,7 +3,6 @@ from typing import Union, Iterable
 
 from .dmd_base import DMDBase
 from pydmd.dmd import DMD as PyDMD
-from pydmd.utils import compute_tlsq
 
 
 class DMD(DMDBase, PyDMD):
@@ -62,4 +61,14 @@ class DMD(DMDBase, PyDMD):
                          rescale_mode, forward_backward, sorted_eigs)
 
     def fit(self, X: Union[ndarray, Iterable]) -> 'DMD':
-        return PyDMD.fit(self, X)
+        PyDMD.fit(self, X)
+        self._enforce_positive_amplitudes()
+
+    def _enforce_positive_amplitudes(self) -> None:
+        """
+        Make all amplitudes positive.
+        """
+        for m in range(self.n_modes):
+            if self._b[m].real < 0.0:
+                self._b[m] *= -1.0
+                self.operator._modes[:, m] *= -1.0
