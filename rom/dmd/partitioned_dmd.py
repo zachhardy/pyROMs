@@ -51,8 +51,11 @@ class PartitionedDMD(DMDBase):
         # Build the partitions
         self._build_partitions()
 
-    def __iter__(self) -> DMDBase:
+    def __iter__(self) -> 'DMDBase':
         return self.dmd_list.__iter__()
+
+    def __getitem__(self, item: int) -> 'DMDBase':
+        return self.dmd_list[item]
 
     @property
     def n_partitions(self) -> int:
@@ -93,7 +96,7 @@ class PartitionedDMD(DMDBase):
     @property
     def reconstructed_data(self) -> ndarray:
         """
-        Return the reconstructed data.
+        Get the reconstructed data.
 
         Returns
         -------

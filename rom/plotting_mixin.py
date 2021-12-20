@@ -19,6 +19,9 @@ if TYPE_CHECKING:
 
 
 class PlottingMixin:
+    """
+    Mixin class for plotting with ROMs.
+    """
 
     def plot_singular_values(self: Union['PODBase', 'DMDBase', 'PlottingMixin'],
                              normalized: bool = True,
@@ -64,7 +67,7 @@ class PlottingMixin:
     def plot_modes_1D(self: Union['PODBase', 'DMDBase', 'PlottingMixin'],
                       mode_indices: List[int] = None,
                       components: List[int] = None,
-                      grid: List[Vector] = None,
+                      x: ndarray = None,
                       filename: str = None) -> None:
         """
         Plot 1D modes.
@@ -77,7 +80,7 @@ class PlottingMixin:
         components : List[int], default None
             The components of the modes to plot. The default behavior
             is to plot all components.
-        grid : List[Vector], default None
+        x : ndarray, default None
             The grid the modes are defined on. The default behaviors
             is a grid from 0 to n_features - 1.
         filename : str, default None
@@ -87,12 +90,8 @@ class PlottingMixin:
         if self.modes is None:
             raise ValueError('The fit method must be performed first.')
 
-        if grid is None:
+        if x is None:
             x = np.arange(0, self.n_features, 1)
-        else:
-            if not all([isinstance(node, Vector) for node in grid]):
-                raise TypeError('The grid must be a list of Vector objects.')
-            x = [node.z for node in grid]
 
         n_components = self.n_features // len(x)
         if not isinstance(n_components, int):
@@ -136,7 +135,7 @@ class PlottingMixin:
     def plot_snapshots_1D(self: Union['PODBase', 'DMDBase', 'PlottingMixin'],
                           snapshot_indices: List[int] = None,
                           components: List[int] = None,
-                          grid: List[Vector] = None,
+                          x: ndarray = None,
                           filename: str = None) -> None:
         """
         Plot 1D snapshots.
@@ -149,7 +148,7 @@ class PlottingMixin:
         components : List[int], default None
             The components of the modes to plot. The default behavior
             is to plot all components.
-        grid : List[Vector], default None
+        x : ndarray, default None
             The grid the modes are defined on. The default behaviors
             is a grid from 0 to n_features - 1.
         filename : str, default None
@@ -158,12 +157,8 @@ class PlottingMixin:
         if self.snapshots is None:
             raise ValueError('No input snapshots found.')
 
-        if grid is None:
+        if x is None:
             x = np.arange(0, self.n_features, 1)
-        else:
-            if not all([isinstance(node, Vector) for node in grid]):
-                raise TypeError('The grid must be a list of Vector objects.')
-            x = [node.z for node in grid]
 
         n_components = self.n_features // len(x)
         if not isinstance(n_components, int):
@@ -207,7 +202,8 @@ class PlottingMixin:
     def plot_modes_2D(self: Union['PODBase', 'DMDBase', 'PlottingMixin'],
                       mode_indices: List[int] = None,
                       components: List[int] = None,
-                      grid: List[Vector] = None,
+                      x: ndarray = None,
+                      y: ndarray = None,
                       filename: str = None) -> None:
         """
         Plot 2D modes.
@@ -220,28 +216,28 @@ class PlottingMixin:
         components : List[int], default None
             The components of the modes to plot. The default behavior
             is to plot all components.
-        grid : List[Vector], default None
-            The grid the modes are defined on. The default behaviors
-            is a grid from 0 to n_features - 1.
+        x, y : ndarray, default None
+            The x,y-nodes the grid is defined on. The default behavior uses
+            the stored dimensions in `_snapshots_shape`.
         filename : str, default None
             A location to save the plot to, if specified.
         """
         # Check the inputs
         if self.modes is None:
-            raise ValueError('The fit method must be performed first.')
+            raise ValueError(
+                'The fit method must be performed first.')
 
-        if grid is None:
+        if x is None and y is None:
             if self._snapshots_shape is None:
                 raise ValueError('There is no information about the '
                                  'original shape of the snapshots.')
             elif len(self._snapshots_shape) != 2:
-                raise ValueError('The dimension of the snapshots is not 2D.')
+                raise ValueError(
+                    'The dimension of the snapshots is not 2D.')
             else:
                 x = np.arange(self._snapshots_shape[0])
                 y = np.arange(self._snapshots_shape[1])
-        else:
-            x = np.unique([node.x for node in grid])
-            y = np.unique([node.y for node in grid])
+        x, y = np.unique(x), np.unique(y)
         X, Y = np.meshgrid(x, y)
 
         n_components = self.n_features // (len(x) * len(y))
@@ -265,8 +261,7 @@ class PlottingMixin:
         # Plot each mode specified
         for idx in mode_indices:
             idx += 0 if idx >= 0 else self.n_modes
-            mode: ndarray = self.modes[:, idx]
-            omega = np.log(self.eigs[idx]) / self.original_time['dt']
+            mode: ndarray = self.modes[:, idx].real
 
             # Make figure
             fig: Figure = plt.figure()
@@ -285,7 +280,7 @@ class PlottingMixin:
                 if i >= (n_rows - 1) * n_cols:
                     ax.set_xlabel('x', fontsize=12)
                 im = ax.pcolor(X, Y, vals, cmap='jet', shading='auto',
-                               vmin=0.0, vmax=vals.max())
+                               vmin=vals.min(), vmax=vals.max())
                 fig.colorbar(im, ax=ax)
                 ax.set_aspect('auto')
 
@@ -297,7 +292,8 @@ class PlottingMixin:
     def plot_snapshots_2D(self: Union['PODBase', 'DMDBase', 'PlottingMixin'],
                           snapshot_indices: List[int] = None,
                           components: List[int] = None,
-                          grid: List[Vector] = None,
+                          x: ndarray = None,
+                          y: ndarray = None,
                           filename: str = None) -> None:
         """
         Plot 2D snapshots.
@@ -310,9 +306,9 @@ class PlottingMixin:
         components : List[int], default None
             The components of the snapshots to plot. The default behavior
             is to plot all components.
-        grid : List[Vector], default None
-            The grid the snapshots are defined on. The default behaviors
-            is a grid from 0 to n_features - 1.
+        x, y : ndarray, default None
+            The x,y-nodes the grid is defined on. The default behavior uses
+            the stored dimensions in `_snapshots_shape`.
         filename : str, default None
             A location to save the plot to, if specified.
         """
@@ -320,18 +316,17 @@ class PlottingMixin:
         if self._snapshots is None:
             raise ValueError('No input snapshots found.')
 
-        if grid is None:
+        if x is None and y is None:
             if self._snapshots_shape is None:
                 raise ValueError('There is no information about the '
                                  'original shape of the snapshots.')
             elif len(self._snapshots_shape) != 2:
-                raise ValueError('The dimension of the snapshots is not 2D.')
+                raise ValueError(
+                    'The dimension of the snapshots is not 2D.')
             else:
                 x = np.arange(self._snapshots_shape[0])
                 y = np.arange(self._snapshots_shape[1])
-        else:
-            x = np.unique([node.x for node in grid])
-            y = np.unique([node.y for node in grid])
+        x, y = np.unique(x), np.unique(y)
         X, Y = np.meshgrid(x, y)
 
         n_components = self.n_features // (len(x) * len(y))
