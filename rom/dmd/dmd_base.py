@@ -73,27 +73,51 @@ class DMDBase(PlottingMixin, PyDMDBase):
         self._svd_modes: ndarray = None  # svd modes
         self._svd_vals: ndarray = None  # singular values
 
-    @PyDMDBase.svd_rank.setter
-    def svd_rank(self, value: Union[float, int]) -> None:
-        self.operator._svd_rank = value
+    @property
+    def opt(self) -> Union[bool, int]:
+        return self._opt
 
-    @PyDMDBase.tlsq_rank.setter
-    def tlsq_rank(self, value: int) -> None:
-        self._tlsq_rank = value
-
-    @PyDMDBase.exact.setter
-    def exact(self, value: bool) -> None:
-        self.operator._exact = value
-
-    @PyDMDBase.opt.setter
+    @opt.setter
     def opt(self, value: Union[bool, int]) -> None:
         self._opt = value
 
-    @PyDMDBase.rescale_mode.setter
+    @property
+    def tlsq_rank(self) -> int:
+        return self._tlsq_rank
+
+    @tlsq_rank.setter
+    def tlsq_rank(self, value: int) -> None:
+        self._tlsq_rank = value
+
+    @property
+    def svd_rank(self) -> Union[int, float]:
+        return self.operator._svd_rank
+
+    @svd_rank.setter
+    def svd_rank(self, value: Union[int, float]) -> None:
+        self.operator._svd_rank = value
+
+    @property
+    def rescale_mode(self) -> Union[str, None, ndarray]:
+        return self.operator._rescale_mode
+
+    @rescale_mode.setter
     def rescale_mode(self, value: Union[str, None, ndarray]) -> None:
         self.operator._rescale_mode = value
 
-    @PyDMDBase.forward_backward.setter
+    @property
+    def exact(self) -> bool:
+        return self.operator._exact
+
+    @exact.setter
+    def exact(self, value: bool) -> None:
+        self.operator._exact = value
+
+    @property
+    def forward_backward(self) -> bool:
+        return self.operator._forward_backward
+
+    @forward_backward.setter
     def forward_backward(self, value: bool) -> None:
         self.operator._forward_backward = value
 
@@ -123,7 +147,7 @@ class DMDBase(PlottingMixin, PyDMDBase):
     @property
     def reconstruction_error(self) -> float:
         """
-        Compute the reconstruction error over the snapshots.
+        Get the reconstruction error over the snapshots.
 
         Returns
         -------
@@ -136,7 +160,7 @@ class DMDBase(PlottingMixin, PyDMDBase):
     @property
     def snapshot_reconstruction_errors(self) -> ndarray:
         """
-        Compute the reconstruction error at each snapshot.
+        Get the reconstruction error at each snapshot.
 
         Returns
         -------
