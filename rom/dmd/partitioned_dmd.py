@@ -51,8 +51,11 @@ class PartitionedDMD(DMDBase):
         # Build the partitions
         self._build_partitions()
 
-    def __iter__(self) -> 'DMDBase':
+    def __iter__(self):
         return self.dmd_list.__iter__()
+
+    def __next__(self) -> 'DMDBase':
+        return next(self.dmd_list)
 
     def __getitem__(self, item: int) -> 'DMDBase':
         return self.dmd_list[item]
@@ -106,6 +109,20 @@ class PartitionedDMD(DMDBase):
             Xp = self.dmd_list[p].reconstructed_data
             X = Xp if p == 0 else np.hstack((X, Xp))
         return X
+
+    @property
+    def snapshot_reconstruction_errors(self) -> ndarray:
+        """
+        Get the reconstruction error per snapshot.
+
+        Returns
+        -------
+        ndarray
+        """
+        errors = []
+        for dmd in self:
+            errors.extend(dmd.snapshot_reconstruction_errors)
+        return np.array(errors)
 
     def partial_modes(self, partition: int) -> ndarray:
         """
