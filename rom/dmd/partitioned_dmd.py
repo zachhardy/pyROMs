@@ -1,3 +1,4 @@
+import itertools
 from copy import deepcopy
 
 import numpy as np
@@ -59,6 +60,10 @@ class PartitionedDMD(DMDBase):
 
     def __getitem__(self, item: int) -> 'DMDBase':
         return self.dmd_list[item]
+
+    def enumerate(self):
+        for i in range(self.n_partitions):
+            yield i, self.dmd_list[i]
 
     @property
     def n_partitions(self) -> int:
@@ -277,6 +282,14 @@ class PartitionedDMD(DMDBase):
         self._original_time = {'t0': 0, 'tend': self.n_snapshots, 'dt': 1}
         self._dmd_time = self.original_time.copy()
         return self
+
+    def find_optimal_parameters(self) -> None:
+        """
+        Perform a parameter search to find the optimal parameters to
+        minimize the error of the DMD model.
+        """
+        for dmd in self:
+            dmd.find_optimal_parameters()
 
     def _build_partitions(self) -> None:
         """

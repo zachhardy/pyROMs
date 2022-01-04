@@ -1,3 +1,6 @@
+import itertools
+
+import numpy as np
 from numpy import ndarray
 from typing import Union, Iterable
 
@@ -7,7 +10,7 @@ from pydmd.dmd import DMD as PyDMD
 
 class DMD(DMDBase, PyDMD):
     """
-    Dynamic Mode Decomposition derived from pyDMD
+    Dynamic Mode Decomposition derived from PyDMD
 
     Parameters
     ----------
@@ -63,6 +66,30 @@ class DMD(DMDBase, PyDMD):
     def fit(self, X: Union[ndarray, Iterable]) -> 'DMD':
         PyDMD.fit(self, X)
         self._enforce_positive_amplitudes()
+
+    def find_optimal_parameters(self) -> None:
+        """
+        Perform a parameter search to find the optimal parameters to
+        minimize the error of the DMD model.
+        """
+        rank = list(range(1, self.n_snapshots))
+        exact, opt = [False, True], [False, True]
+        cases = list(itertools.product(rank, exact, opt))
+
+        # Loop over each set of parameters
+        errors = []
+        for rank, exact, opt in cases:
+            self.svd_rank = rank
+            self.exact = exact
+            self.opt = opt
+            self.fit(self.snapshots)
+            errors.append(self.reconstruction_error)
+
+        argmin = np.nanargmin(errors)
+        self.svd_rank = cases[argmin][0]
+        self.exact = cases[argmin][1]
+        self.opt = cases[argmin][2]
+        self.fit(self.snapshots)
 
     def _enforce_positive_amplitudes(self) -> None:
         """

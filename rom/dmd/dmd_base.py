@@ -168,10 +168,7 @@ class DMDBase(PlottingMixin, PyDMDBase):
         """
         X: ndarray = self.snapshots
         Xdmd: ndarray = self.reconstructed_data
-        errors = np.empty(self.n_snapshots)
-        for t in range(self.n_snapshots):
-            errors[t] = norm(X[:, t] - Xdmd[:, t]) / norm(X[:, t])
-        return errors
+        return norm(X-Xdmd, axis=0) / norm(X, axis=0)
 
     def fit(self, X: Union[ndarray, Iterable]):
         """
@@ -180,8 +177,18 @@ class DMDBase(PlottingMixin, PyDMDBase):
         Not implemented, it has to be implemented in subclasses.
         """
         raise NotImplementedError(
-            'Subclass must implement abstract method {}.fit'.format(
-                self.__class__.__name__))
+            f'Subclass must implement abstract '
+            f'method {self.__class__.__name__}.fit')
+
+    def find_optimal_parameters(self) -> None:
+        """
+        Abstract method to find optimal hyper-parameters
+
+        Not implemented, it has to be implemented in subclasses.
+        """
+        raise NotImplementedError(
+            f'Subclass must implement abstract method '
+            f'{self.__class__.__name__}.find_optimal_parameters')
 
     def plot_dynamics(self,
                       mode_indices: List[int] = None,
@@ -234,3 +241,17 @@ class DMDBase(PlottingMixin, PyDMDBase):
             if filename is not None:
                 base, ext = splitext(filename)
                 plt.savefig(base + f'_{idx}.pdf')
+
+    def print_summary(self) -> None:
+        """
+        Print a summary of the DMD model.
+        """
+        msg = '===== DMD Summary ====='
+        header = '='*len(msg)
+        print('\n'.join(['', header, msg, header]))
+        print(f"{'# of Modes':<20}: {self.n_modes}")
+        print(f"{'# of Snapshots':<20}: {self.n_snapshots}")
+        print(f"{'Reconstruction Error':<20}: "
+              f"{self.reconstruction_error:.3e}")
+        print(f"{'Max Snapshot Error':<20}: "
+              f"{np.max(self.snapshot_reconstruction_errors):.3e}")
