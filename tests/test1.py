@@ -8,9 +8,9 @@ import matplotlib.pyplot as plt
 
 from numpy.linalg import norm
 
-from rom.dmd.dmd_base import DMDBase
-from rom.dmd import DMD
-from rom.pod import POD
+from pyROMs.dmd.dmd_base import DMDBase
+from pyROMs.dmd import DMD
+from pyROMs.pod import POD
 
 plt.rcParams['pcolor.shading'] = 'auto'
 
