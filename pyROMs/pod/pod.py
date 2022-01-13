@@ -22,7 +22,14 @@ class POD(PODBase):
     Proper Orthogonal Decomposition.
     """
 
-    def fit(self, X: ndarray, Y: ndarray) -> None:
+    def __init__(self, svd_rank: Union[int, float] = 0) -> None:
+        super().__init__(svd_rank)
+        self._interpolation_method: str = None
+        self._interpolant: callable = None
+
+    def fit(self, X: ndarray, Y: ndarray,
+            interpolation_method: str = 'linear',
+            **kwargs) -> None:
         """
         Compute the POD of the inupt data.
 
@@ -32,6 +39,10 @@ class POD(PODBase):
             The training snapshots stored row-wise.
         Y : ndarray (n_snapshots, n_parameters), default None
             The training parameters stored row-wise.
+        interpolation_method : str, default 'linear'
+            The prediction method to use. Options are 'linear',
+            'cubic', 'nearest', 'rbf', 'rbf_<function name>', and
+            'gp'.
         """
         # Format training information, define SVD flag
         X, Xshape = _row_major_2darray(X)
@@ -57,6 +68,9 @@ class POD(PODBase):
         # Compute amplitudes
         self._b = self.transform(X)
 
+        # Create interpolator
+        self._init_interpolator(interpolation_method, **kwargs)
+
     def transform(self, X: ndarray) -> ndarray:
         """
         Transform the data X to the low-rank space.
@@ -80,7 +94,7 @@ class POD(PODBase):
                 'of features in the training data.')
         return self._modes.T @ X.T
 
-    def predict(self, Y: ndarray, method: str = 'linear') -> ndarray:
+    def predict(self, Y: ndarray) -> ndarray:
         """
         Predict a full-order result for a set of parameters.
 
@@ -100,11 +114,10 @@ class POD(PODBase):
                 'The number of parameters per query must match '
                 'the number of parameters per snapshot.')
 
-        amplitudes = self._interpolate(Y, method)
+        amplitudes = self._interpolate(Y)
         return np.transpose(self._modes @ amplitudes)
 
-    def _interpolate(self, Y: ndarray, method: str,
-                     eps: float = 1.0) -> ndarray:
+    def _interpolate(self, Y: ndarray) -> ndarray:
         """
         Interpolate POD mode amplitudes.
 
@@ -112,43 +125,83 @@ class POD(PODBase):
         ----------
         Y : ndarray (varies, n_parameters)
             The query parameters.
-        method : str {'linear', 'cubic', 'nearest', 'rbf', 'rbf_' + varies}
-            The prediction method to use.
-        eps : float, default 1.0
-            The shape parameter to scale the inputs to the RBF. This is only
-            applicable when the RBF is not scale invariant.
 
         Returns
         -------
-        ndarray (varies, n_modes)
+        ndarray (n_modes, varies)
             The predictions for the amplitudes corresponding to
             the query parameters.
         """
-        # Regular interpolation
-        if method in ['linear', 'cubic', 'nearest']:
-            args = (self._parameters, self._b.T, Y)
-            amplitudes = griddata(*args, method=method.lower())
+        # Gaussian Process query
+        if self._interpolation_method != 'gp':
+            amplitudes = self._interpolator(Y)
 
-        # Radial basis function interpolation
-        elif 'rbf' in method:
+        # Regular interpolation query
+        else:
+            amplitudes = self._interpolator.predict(Y)
+        return amplitudes.reshape(len(Y), self.n_modes).T
+
+    def _init_interpolator(self, method: str, **kwargs) -> None:
+        """
+        Private method to initialize the interpolant.
+
+        Parameters
+        ----------
+        method : str
+            The interpolation method to use. Options are 'linear',
+            'cubic', 'nearest', 'rbf', 'rbf_<function name>', and
+            'gp'.
+        kwargs
+            Key word arguments for interpolators
+        """
+        pts, vals = self._parameters, self._b.T
+
+        # Standard interpolators
+        if method in ['linear', 'cubic', 'nearest']:
+            if self.n_parameters == 1:
+                from scipy.interpolate import interp1d
+                interp = interp1d(pts, vals)
+            else:
+                if method == 'linear':
+                    from scipy.interpolate import LinearNDInterpolator
+                    interp = LinearNDInterpolator(pts, vals, rescale=True)
+                elif method == 'nearest':
+                    from scipy.interpolate import NearestNDInterpolator
+                    interp = NearestNDInterpolator(pts, vals, rescale=True)
+                elif method == 'cubic':
+                    if self.n_parameters > 2:
+                        raise AssertionError(
+                            f'Cubic interpolation is only available in one- '
+                            f'and two-dimensions.')
+                    from scipy.interpolate import CloughTocher2DInterpolator
+                    interp = CloughTocher2DInterpolator(pts, vals, rescale=True)
+
+        # Radial basis function interpolators
+        if 'rbf' in method:
+            # default kernel to thin plate spline
             if method == 'rbf':
-                kernel = 'thin_plate_spline'
-            elif '_' in method:
+                method += '_thin_plate_spline'
+
+            # split to find kernel function
+            if '_' in method:
                 kernel = '_'.join(method.split('_')[1:])
             else:
-                raise ValueError('Specific RBFs must be specified as '
-                                 'rbf_<function name>.')
+                raise ValueError(f'RBF interpolators must be specified as '
+                                 f'rbf_<function_name>.')
 
-            interp = RBFInterpolator(self.parameters, self._b.T,
-                                     kernel=kernel, epsilon=eps)
-            amplitudes = interp(Y)
+            from scipy.interpolate import RBFInterpolator
+            interp = RBFInterpolator(pts, vals, kernel=kernel, **kwargs)
 
-        # Gaussian Process interpolation
-        else:
-            # TODO: This needs some work for consistent accuracy
-            kernel = ConstantKernel(1.0) * RBF(1.0)
-            gp = GaussianProcessRegressor(kernel, n_restarts_optimizer=100,
-                                          alpha=1e-8, normalize_y=True)
-            gp.fit(self._parameters, self._b.T)
-            amplitudes = gp.predict(Y)
-        return amplitudes.reshape(len(Y), self.n_modes).T
+        # Create Gaussian Process
+        elif method == 'gp':
+            from sklearn.gaussian_process.kernels import ConstantKernel
+            from sklearn.gaussian_process.kernels import RBF
+            from sklearn.gaussian_process import GaussianProcessRegressor
+
+            kernel = ConstantKernel()*RBF()
+            interp = GaussianProcessRegressor(kernel, **kwargs)
+            interp.fit(pts, vals)
+
+        # Set the interpolator
+        self._interpolation_method = method
+        self._interpolator = interp
