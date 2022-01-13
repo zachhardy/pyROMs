@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 
 from numpy.linalg import norm
 
-from pyROMs.dmd.dmd_base import DMDBase
 from pyROMs.dmd import DMD
 from pyROMs.pod import POD
 
@@ -49,13 +48,13 @@ plt.tight_layout()
 
 # =================================== Fit a DMD model
 dmd = DMD(svd_rank=2)
-dmd.fit(X)
-X_dmd = dmd.reconstructed_data.real
+dmd.fit(X.T)
+X_dmd = dmd.reconstructed_data.real.T
 dmd.plot_modes_1D()
 
 # =================================== Fit a POD model
 pod = POD(svd_rank=2)
-pod.fit(X, times)
+pod.fit(X.T, times)
 X_pod = pod.reconstructed_data.real
 pod.plot_modes_1D()
 
