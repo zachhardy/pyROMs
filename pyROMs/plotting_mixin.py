@@ -14,8 +14,8 @@ from typing import Union
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from rom.pod import PODBase
-    from rom.dmd import DMDBase
+    from pyROMs.pod import PODBase
+    from pyROMs.dmd import DMDBase
 
 
 class PlottingMixin:
