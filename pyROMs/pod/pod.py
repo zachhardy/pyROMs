@@ -1,7 +1,7 @@
 import numpy as np
 
 from numpy import ndarray
-from numpy.linalg import norm
+from numpy.linalg import svd
 from scipy.interpolate import griddata, RBFInterpolator
 import matplotlib.pyplot as plt
 from typing import Union
@@ -11,6 +11,7 @@ from sklearn.gaussian_process.kernels import ConstantKernel
 from sklearn.gaussian_process.kernels import RBF
 
 from .pod_base import PODBase
+from ..utils import compute_rank, _row_major_2darray
 
 Rank = Union[float, int]
 TestData = Union[float, ndarray]
@@ -32,7 +33,9 @@ class POD(PODBase):
         Y : ndarray (n_snapshots, n_parameters), default None
             The training parameters stored row-wise.
         """
-        X, Xshape = self._col_major_2darray(X)
+        # Format training information, define SVD flag
+        X, Xshape = _row_major_2darray(X)
+        do_svd = not np.array_equal(X, self._snapshots)
         self._snapshots = X
         self._snapshots_shape = Xshape
 
@@ -42,8 +45,14 @@ class POD(PODBase):
         self._parameters = Y
 
         # Perform the SVD
-        U, s, V = self._compute_svd(X, self._svd_rank)
-        self._modes = U
+        if do_svd:
+            U, s, _ = svd(X.T, full_matrices=False)
+            self._U, self._s = U, s
+
+        # Compute rank, trucate
+        args = (X, self._U, self._s)
+        rank = compute_rank(self.svd_rank, *args)
+        self._modes = self._U[:, :rank]
 
         # Compute amplitudes
         self._b = self.transform(X)
@@ -65,11 +74,11 @@ class POD(PODBase):
         if self.modes is None:
             raise AssertionError('The POD model must be fit.')
 
-        if X.shape[0] != self.n_features:
+        if X.shape[1] != self.n_features:
             raise AssertionError(
                 'The number of features must match the number '
                 'of features in the training data.')
-        return self.modes.T @ X
+        return self.modes.T @ X.T
 
     def predict(self, Y: ndarray, method: str = 'linear') -> ndarray:
         """
@@ -77,14 +86,14 @@ class POD(PODBase):
 
         Parameters
         ----------
-        Y : ndarray (n_snapshots, n_parameters)
+        Y : ndarray (varies, n_parameters)
             The query parameters.
-        method : str {'linear', 'cubic', 'gp'}, default 'cubic'
+        method : str {'linear', 'cubic', 'nearest', 'rbf', 'rbf_' + varies}
             The prediction method to use.
 
         Returns
         -------
-        ndarray (n_features, n_snapshots)
+        ndarray (varies, n_features)
         """
         if Y.shape[1] != self.n_parameters:
             raise ValueError(
@@ -92,7 +101,7 @@ class POD(PODBase):
                 'the number of parameters per snapshot.')
 
         amplitudes = self._interpolate(Y, method)
-        return self._modes @ amplitudes
+        return np.transpose(self._modes @ amplitudes)
 
     def _interpolate(self, Y: ndarray, method: str,
                      eps: float = 1.0) -> ndarray:
@@ -101,7 +110,7 @@ class POD(PODBase):
 
         Parameters
         ----------
-        Y : ndarray (n_snapshots, n_parameters)
+        Y : ndarray (varies, n_parameters)
             The query parameters.
         method : str {'linear', 'cubic', 'nearest', 'rbf', 'rbf_' + varies}
             The prediction method to use.
@@ -111,7 +120,7 @@ class POD(PODBase):
 
         Returns
         -------
-        ndarray (n_modes, n_snapshots)
+        ndarray (varies, n_modes)
             The predictions for the amplitudes corresponding to
             the query parameters.
         """

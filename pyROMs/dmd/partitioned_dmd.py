@@ -5,8 +5,10 @@ import numpy as np
 from numpy import ndarray
 from numpy.linalg import norm
 
-from .dmd_base import DMDBase
 from typing import List, Union, Tuple, Iterable
+
+from .dmd_base import DMDBase
+from ..utils import _row_major_2darray
 
 
 class PartitionedDMD(DMDBase):
@@ -82,10 +84,6 @@ class PartitionedDMD(DMDBase):
         return [dmd.svd_rank for dmd in self]
 
     @property
-    def tlsq_rank(self) -> List[int]:
-        return [dmd.tlsq_rank for dmd in self]
-
-    @property
     def exact(self) -> List[bool]:
         return [dmd.exact for dmd in self]
 
@@ -94,29 +92,21 @@ class PartitionedDMD(DMDBase):
         return [dmd.opt for dmd in self]
 
     @property
-    def rescale_mode(self) -> List[Union[str, None, ndarray]]:
-        return [dmd.rescale_mode for dmd in self]
-
-    @property
-    def forward_backward(self) -> List[bool]:
-        return [dmd.forward_backward for dmd in self]
-
-    @property
     def reconstructed_data(self) -> ndarray:
         """
         Get the reconstructed data.
 
         Returns
         -------
-        ndarray (n_features, n_snapshots)
+        ndarray (n_snapshots, n_features)
         """
         for p in range(self.n_partitions):
             Xp = self.dmd_list[p].reconstructed_data
-            X = Xp if p == 0 else np.hstack((X, Xp))
+            X = Xp if p == 0 else np.vstack((X, Xp))
         return X
 
     @property
-    def snapshot_reconstruction_errors(self) -> ndarray:
+    def snapshot_errors(self) -> ndarray:
         """
         Get the reconstruction error per snapshot.
 
@@ -126,7 +116,7 @@ class PartitionedDMD(DMDBase):
         """
         errors = []
         for dmd in self:
-            errors.extend(dmd.snapshot_reconstruction_errors)
+            errors.extend(dmd.snapshot_errors)
         return np.array(errors)
 
     def partial_modes(self, partition: int) -> ndarray:
@@ -174,7 +164,7 @@ class PartitionedDMD(DMDBase):
         -------
         ndarray (n_modes[partition],)
         """
-        return self.dmd_list[partition].eigs
+        return self.dmd_list[partition].eigvals
 
     def partial_reconstructed_data(self, partition: int) -> ndarray:
         """
@@ -247,7 +237,9 @@ class PartitionedDMD(DMDBase):
             The input snapshots
         """
         # Set the snapshots
-        self._snapshots, self._snapshots_shape = self._col_major_2darray(X)
+        X, Xshape = _row_major_2darray(X)
+        self._snapshots = X
+        self._snapshots_shape = Xshape
 
         # Check partitions and options
         if self.partition_points is None:
@@ -271,7 +263,7 @@ class PartitionedDMD(DMDBase):
                 end = self.n_snapshots - 1
 
             # Define the partitioned dataset
-            Xp = self._snapshots[:, start:end + 1]
+            Xp = self._snapshots[start:end + 1]
 
             # Fit the submodel
             self.dmd_list[p].fit(Xp)
@@ -279,7 +271,7 @@ class PartitionedDMD(DMDBase):
             # Shift the start point
             start = end + 1
 
-        self._original_time = {'t0': 0, 'tend': self.n_snapshots, 'dt': 1}
+        self._original_time = {'t0': 0, 'tend': self.n_snapshots - 1, 'dt': 1}
         self._dmd_time = self.original_time.copy()
         return self
 

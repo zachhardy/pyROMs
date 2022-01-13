@@ -178,7 +178,7 @@ class PlottingMixin:
         # Plot each snapshot
         for idx in snapshot_indices:
             idx += 0 if idx >= 0 else self.n_snapshots
-            snapshot: ndarray = self.snapshots[:, idx].real
+            snapshot: ndarray = self.snapshots[idx].real
 
             # Make figure
             fig: Figure = plt.figure()
@@ -313,7 +313,7 @@ class PlottingMixin:
             A location to save the plot to, if specified.
         """
         # Check the inputs
-        if self._snapshots is None:
+        if self.snapshots is None:
             raise ValueError('No input snapshots found.')
 
         if x is None and y is None:
@@ -350,7 +350,7 @@ class PlottingMixin:
         # Plot each mode specified
         for idx in snapshot_indices:
             idx += 0 if idx >= 0 else self.n_snapshots
-            snapshot: ndarray = self.snapshots[:, idx]
+            snapshot: ndarray = self.snapshots[idx]
 
             # Make figure
             fig: Figure = plt.figure()
