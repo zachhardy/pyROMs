@@ -22,7 +22,7 @@ class POD(PODBase):
     Proper Orthogonal Decomposition.
     """
 
-    def fit(self, X: ndarray, Y: ndarray = None) -> None:
+    def fit(self, X: ndarray, Y: ndarray) -> None:
         """
         Compute the POD of the inupt data.
 
@@ -78,7 +78,7 @@ class POD(PODBase):
             raise AssertionError(
                 'The number of features must match the number '
                 'of features in the training data.')
-        return self.modes.T @ X.T
+        return self._modes.T @ X.T
 
     def predict(self, Y: ndarray, method: str = 'linear') -> ndarray:
         """
@@ -148,7 +148,7 @@ class POD(PODBase):
             # TODO: This needs some work for consistent accuracy
             kernel = ConstantKernel(1.0) * RBF(1.0)
             gp = GaussianProcessRegressor(kernel, n_restarts_optimizer=100,
-                                          alpha=1e-4, normalize_y=True)
+                                          alpha=1e-8, normalize_y=True)
             gp.fit(self._parameters, self._b.T)
             amplitudes = gp.predict(Y)
         return amplitudes.reshape(len(Y), self.n_modes).T

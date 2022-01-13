@@ -145,7 +145,6 @@ class DMDBase(PlottingMixin):
         """
         return self.omegas.imag / (2.0*np.pi)
 
-
     @property
     def eigvecs(self) -> ndarray:
         """
@@ -324,8 +323,9 @@ class DMDBase(PlottingMixin):
             f'Subclass must implement abstract method '
             f'{self.__class__.__name__}.find_optimal_parameters')
 
-    def _compute_Atilde(self, U: ndarray, s: ndarray,
-                          V: ndarray, Y: ndarray) -> ndarray:
+    @staticmethod
+    def _compute_Atilde(U: ndarray, s: ndarray,
+                        V: ndarray, Y: ndarray) -> ndarray:
         """
         Compute the low-rank evolution operator `Atilde`.
 
@@ -366,7 +366,6 @@ class DMDBase(PlottingMixin):
                         return eig.real, eig.imag
                     return eig.real, 0.0
             else:
-                print(self.sorted_eigs)
                 raise ValueError(f'Invalid value for sorted_eigs.')
 
             # Sort based on sorting function k
@@ -398,7 +397,7 @@ class DMDBase(PlottingMixin):
         else:
             self._modes = U.dot(self._eigvecs)
 
-    def _compute_amplitudes(self) -> None:
+    def _compute_amplitudes(self) -> ndarray:
         """
         Compute the amplitude coefficients according to the
         `self.opt` parameter.
@@ -456,7 +455,7 @@ class DMDBase(PlottingMixin):
         print(f"{'# of Snapshots':<20}: {self.n_snapshots}")
         print(f"{'Reconstruction Error':<20}: "
               f"{self.reconstruction_error:.3e}")
-        print(f"{'Mean Snapshot Error:<20'}: "
+        print(f"{'Mean Snapshot Error':<20}: "
               f"{np.mean(self.snapshot_errors):.3e}")
         print(f"{'Max Snapshot Error':<20}: "
               f"{np.max(self.snapshot_errors):.3e}")
