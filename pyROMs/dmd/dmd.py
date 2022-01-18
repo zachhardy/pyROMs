@@ -74,9 +74,8 @@ class DMD(DMDBase):
 
         # Compute SVD
         if do_svd:
-            W, V = np.linalg.eig(np.dot(X.T, X))
-            s = np.sqrt(W)
-            U = np.dot(X, V) * np.reciprocal(s)
+            U, s, V = np.linalg.svd(X, full_matrices=False)
+            V = np.transpose(np.conj(V))
             self._U, self._s, self._V = U, s, V
 
         # Compute rank, truncate
