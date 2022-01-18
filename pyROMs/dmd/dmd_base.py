@@ -450,7 +450,7 @@ class DMDBase(PlottingMixin):
         """
         msg = '===== DMD Summary ====='
         header = '='*len(msg)
-        print('\n'.join(['', header, msg, header]))
+        print('\n'.join([header, msg, header]))
         print(f"{'# of Modes':<20}: {self.n_modes}")
         print(f"{'# of Snapshots':<20}: {self.n_snapshots}")
         print(f"{'Reconstruction Error':<20}: "
