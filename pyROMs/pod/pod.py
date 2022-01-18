@@ -111,6 +111,8 @@ class POD(PODBase):
         -------
         ndarray (varies, n_features)
         """
+        Y = np.atleast_2d(Y)
+        Y = Y.T if self.n_parameters == 1 else Y
         if Y.shape[1] != self.n_parameters:
             raise ValueError(
                 'The number of parameters per query must match '
