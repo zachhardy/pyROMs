@@ -50,6 +50,8 @@ class POD(PODBase):
         self._snapshots = X
         self._snapshots_shape = Xshape
 
+        Y = np.atleast_2d(Y)
+        Y = Y.T if Y.shape[0] == 1 else Y
         if Y.shape[0] != X.shape[0]:
             raise ValueError('The number of parameter sets must '
                              'match the number of snapshots.')
@@ -57,9 +59,7 @@ class POD(PODBase):
 
         # Perform the SVD
         if do_svd:
-            W, V = np.linalg.eig(np.dot(X, X.T))
-            s = np.sqrt(W)
-            U = np.dot(X.T, V) * np.reciprocal(s)
+            U, s, _ = np.linalg.svd(X.T, full_matrices=False)
             self._U, self._s = U, s
 
         # Compute rank, trucate
@@ -111,13 +111,19 @@ class POD(PODBase):
         -------
         ndarray (varies, n_features)
         """
-        Y = np.atleast_2d(Y)
-        Y = Y.T if self.n_parameters == 1 else Y
+        # Format test values
+        Y = np.array(Y) if isinstance(Y, list) else Y
+        if Y.ndim == 1:
+            Y = np.atleast_2d(Y)
+            Y = Y.T if self.n_parameters == 1 else Y
+
+        # Check test values
         if Y.shape[1] != self.n_parameters:
             raise ValueError(
                 'The number of parameters per query must match '
                 'the number of parameters per snapshot.')
 
+        # Make prediction
         amplitudes = self._interpolate(Y)
         return np.transpose(self._modes @ amplitudes)
 
@@ -138,6 +144,10 @@ class POD(PODBase):
         """
         # Gaussian Process query
         if self._interpolation_method != 'gp':
+            if self.n_parameters == 1:
+                methods = ['linear', 'cubic', 'nearest']
+                if self._interpolation_method in methods:
+                    Y = Y.ravel() if self.n_parameters == 1 else Y
             amplitudes = self._interpolator(Y)
 
         # Regular interpolation query
@@ -164,7 +174,7 @@ class POD(PODBase):
         if method in ['linear', 'cubic', 'nearest']:
             if self.n_parameters == 1:
                 from scipy.interpolate import interp1d
-                interp = interp1d(pts, vals)
+                interp = interp1d(pts.ravel(), vals, axis=0)
             else:
                 if method == 'linear':
                     from scipy.interpolate import LinearNDInterpolator
