@@ -57,7 +57,9 @@ class POD(PODBase):
 
         # Perform the SVD
         if do_svd:
-            U, s, _ = svd(X.T, full_matrices=False)
+            W, V = np.linalg.eig(np.dot(X, X.T))
+            s = np.sqrt(W)
+            U = np.dot(X.T, V) * np.reciprocal(s)
             self._U, self._s = U, s
 
         # Compute rank, trucate
