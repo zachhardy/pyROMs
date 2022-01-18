@@ -173,6 +173,22 @@ class PODBase(PlottingMixin):
             f'Subclasses must implement abstact method '
             f'{self.__class__.__name__}.fit')
 
+    def print_summary(self) -> None:
+        """
+        Print a summary of the DMD model.
+        """
+        msg = '===== POD Summary ====='
+        header = '='*len(msg)
+        print('\n'.join([header, msg, header]))
+        print(f"{'# of Modes':<20}: {self.n_modes}")
+        print(f"{'# of Snapshots':<20}: {self.n_snapshots}")
+        print(f"{'Reconstruction Error':<20}: "
+              f"{self.reconstruction_error:.3e}")
+        print(f"{'Mean Snapshot Error':<20}: "
+              f"{np.mean(self.snapshot_errors):.3e}")
+        print(f"{'Max Snapshot Error':<20}: "
+              f"{np.max(self.snapshot_errors):.3e}")
+
     def plot_coefficients(self,
                           mode_indices: List[int] = None,
                           one_plot: bool = True,
