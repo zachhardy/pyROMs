@@ -49,7 +49,8 @@ class DMD(DMDBase):
                  sorted_eigs: Union[bool, str] = None) -> None:
         super().__init__(svd_rank, exact, opt, sorted_eigs)
 
-    def fit(self, X: Union[ndarray, Iterable]) -> 'DMD':
+    def fit(self, X: Union[ndarray, Iterable],
+            svd_rank: Union[int, float] = None) -> 'DMD':
         """
         Fit the DMD model to input snpshots X.
 
@@ -58,6 +59,9 @@ class DMD(DMDBase):
         X : ndarray or iterable
             The input snapshots.
         """
+        if svd_rank is not None:
+            self.svd_rank = svd_rank
+
         # Format the data
         X, orig_shape = _row_major_2darray(X)
         do_svd = not np.array_equal(X, self._snapshots)
