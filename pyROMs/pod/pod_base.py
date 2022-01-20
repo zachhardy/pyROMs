@@ -43,6 +43,7 @@ class PODBase(PlottingMixin):
         # SVD information
         self._U: ndarray = None
         self._s: ndarray = None
+        self._Vstar: ndarray = None
 
         # POD information
         self._modes: ndarray = None
@@ -153,9 +154,20 @@ class PODBase(PlottingMixin):
 
         Returns
         -------
-        ndarray (n_features, n_snapshots - 1)
+        ndarray (n_features, n_snapshots)
         """
         return self._U
+
+    @property
+    def right_svd_modes(self) -> ndarray:
+        """
+        Get the right singular vectors.
+
+        Returns
+        -------
+        ndarray (n_snapshots, n_snapshots)
+        """
+        return np.transpose(np.conj(self._Vstar))
 
     @property
     def singular_values(self) -> ndarray:

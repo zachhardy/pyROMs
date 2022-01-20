@@ -29,7 +29,8 @@ class POD(PODBase):
 
     def fit(self, X: ndarray, Y: ndarray,
             interpolation_method: str = 'linear',
-            **kwargs) -> None:
+            svd_rank: Union[int, float] = None,
+            **kwargs) -> 'POD':
         """
         Compute the POD of the inupt data.
 
@@ -44,6 +45,9 @@ class POD(PODBase):
             'cubic', 'nearest', 'rbf', 'rbf_<function name>', and
             'gp'.
         """
+        if svd_rank is not None:
+            self.svd_rank = svd_rank
+
         # Format training information, define SVD flag
         X, Xshape = _row_major_2darray(X)
         do_svd = not np.array_equal(X, self._snapshots)
@@ -59,8 +63,8 @@ class POD(PODBase):
 
         # Perform the SVD
         if do_svd:
-            U, s, _ = np.linalg.svd(X.T, full_matrices=False)
-            self._U, self._s = U, s
+            U, s, Vstar = np.linalg.svd(X.T, full_matrices=False)
+            self._U, self._s, self._Vstar = U, s, Vstar
 
         # Compute rank, trucate
         args = (X, self._U, self._s)
@@ -68,10 +72,14 @@ class POD(PODBase):
         self._modes = self._U[:, :rank]
 
         # Compute amplitudes
-        self._b = self.transform(X)
+        s = np.diag(self._s[:self.n_modes])
+        Vstar = self._Vstar[:self.n_modes]
+        self._b = np.dot(s, Vstar)
 
         # Create interpolator
         self._init_interpolator(interpolation_method, **kwargs)
+
+        return self
 
     def transform(self, X: ndarray) -> ndarray:
         """
@@ -79,7 +87,7 @@ class POD(PODBase):
 
         Parameters
         ----------
-        X : ndarray (n_features, n_snapshots)
+        X : ndarray (n_snapshots, n_features)
             The snapshot data to transform.
 
         Returns
