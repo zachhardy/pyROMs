@@ -45,7 +45,7 @@ class PlottingMixin:
         # Format the singular values
         svals = self.singular_values
         if normalized:
-            svals /= sum(svals)
+            svals = svals / max(svals)
 
         # Define the plotter
         plotter = plt.semilogy if logscale else plt.plot
@@ -57,8 +57,8 @@ class PlottingMixin:
                    else 'Relative Singular Value')
         plotter(svals, '-*b')
         if show_rank:
-            plt.axvline(self.n_modes - 1, color='r',
-                        ymin=svals.min(), ymax=svals.max())
+            plt.axhline(svals[self.n_modes - 1], color='r',
+                        xmin=0, xmax=len(svals) - 1)
         plt.tight_layout()
         if filename is not None:
             base, ext = splitext(filename)
