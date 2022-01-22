@@ -30,17 +30,9 @@ class DMDBase(PlottingMixin):
     exact : bool, default False
         Flag to compute either exact DMD or projected DMD.
     opt : bool or int, default False
-        If True, amplitudes are computed like in optimized DMD  (see
-        :func:`~dmdbase.DMDBase._compute_amplitudes` for reference). If
-        False, amplitudes are computed following the standard algorithm. If
-        `opt` is an integer, it is used as the (temporal) index of the snapshot
-        used to compute DMD modes amplitudes (following the standard algorithm).
-        The reconstruction will generally be better in time instants near the
-        chosen snapshot; however increasing `opt` may lead to wrong results when
-        the system presents small eigenvalues. For this reason a manual
-        selection of the number of eigenvalues considered for the analyisis may
-        be needed (check `svd_rank`). Also setting `svd_rank` to a value between
-        0 and 1 may give better results.
+        If True, optimal amplitudes are computes. If False, the
+        amplitudes are computed via a fit to the first snapshot. If an int,
+        they are computed via a fit to the specifiec snapshot indes.
     sorted_eigs : {'real', 'abs'} or None, default None
          Sort eigenvalues (and modes/dynamics accordingly) by
         magnitude if `sorted_eigs='abs'`, by real part (and then by imaginary
