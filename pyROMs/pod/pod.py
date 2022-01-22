@@ -28,7 +28,7 @@ class POD(PODBase):
         self._interpolant: callable = None
 
     def fit(self, X: ndarray, Y: ndarray,
-            interpolation_method: str = 'linear',
+            interpolation_method: str = 'rbf',
             svd_rank: Union[int, float] = None,
             **kwargs) -> 'POD':
         """
