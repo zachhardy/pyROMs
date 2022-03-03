@@ -54,8 +54,9 @@ class POD(PODBase):
         self._snapshots = X
         self._snapshots_shape = Xshape
 
-        Y = np.atleast_2d(Y)
-        Y = Y.T if Y.shape[0] == 1 else Y
+        Y = np.array(Y)
+        if Y.ndim == 1:
+            Y = np.atleast_2d(Y).T
         if Y.shape[0] != X.shape[0]:
             raise ValueError('The number of parameter sets must '
                              'match the number of snapshots.')
@@ -182,7 +183,7 @@ class POD(PODBase):
         if method in ['linear', 'cubic', 'nearest']:
             if self.n_parameters == 1:
                 from scipy.interpolate import interp1d
-                interp = interp1d(pts.ravel(), vals, axis=0)
+                interp = interp1d(pts.ravel(), vals, method, axis=0)
             else:
                 if method == 'linear':
                     from scipy.interpolate import LinearNDInterpolator

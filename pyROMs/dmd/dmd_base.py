@@ -66,6 +66,7 @@ class DMDBase(PlottingMixin):
         # DMD information
         self._Atilde: ndarray = None
         self._eigvals: ndarray = None
+        self._omegas: ndarray = None
         self._eigvecs: ndarray = None
         self._modes: ndarray = None
         self._b: ndarray = None
@@ -124,7 +125,13 @@ class DMDBase(PlottingMixin):
         -------
         ndarray (n_modes,)
         """
-        return np.log(self.eigvals) / self.original_time['dt']
+        if self._omegas is None:
+            omegas = np.log(self.eigvals)/self.original_time["dt"]
+            for i in range(len(omegas)):
+                if omegas[i].imag % np.pi < 1.0e-12:
+                    omegas[i] = omegas[i].real + 0.0j
+            self._omegas = omegas
+        return self._omegas
 
     @property
     def frequency(self) -> ndarray:
@@ -306,7 +313,7 @@ class DMDBase(PlottingMixin):
             f'Subclass must implement the method '
             f'{self.__class__.__name__}.fit')
 
-    def find_optimal_parameters(self) -> None:
+    def find_optimal_parameters(self, verbose: False) -> None:
         """
         Abstract method to find optimal hyper-parameters.
         Not implemented, it has to be implemented in subclasses.
@@ -344,7 +351,10 @@ class DMDBase(PlottingMixin):
         Compute the eigendecomposition of the low-rank
         evolution operator `Atilde`.
         """
-        self._eigvals, self._eigvecs = eig(self._Atilde)
+        # Compute the eigendecomposition
+        eigvals, eigvecs = eig(self._Atilde)
+        self._eigvals = np.array(eigvals, dtype=complex)
+        self._eigvecs = np.array(eigvecs, dtype=complex)
 
         # Determine the sorting routine
         if self.sorted_eigs is not None:
@@ -362,7 +372,7 @@ class DMDBase(PlottingMixin):
 
             # Sort based on sorting function k
             eigpairs = zip(self._eigvals, self._eigvecs)
-            a, b = zip(*sorted(eigpairs), key=k)
+            a, b = zip(*sorted(eigpairs, key=k)[::-1])
             self._eigvals = np.array([val for val in a])
             self._eigvecs = np.array([vec for vec in b]).T
 
@@ -429,19 +439,21 @@ class DMDBase(PlottingMixin):
                 rcond=None)[0]
 
         # Ensure positive amplitudes
-        for i in range(self.n_modes):
-            if b[i] < 0.0:
-                b[i] *= -1.0
-                self._modes[:, i] *= -1.0
-
+        # for i in range(self.n_modes):
+        #     if b[i] < 0.0:
+        #         b[i] *= -1.0
+        #         self._modes[:, i] *= -1.0
         return b
 
-    def print_summary(self) -> None:
+    def print_summary(self, skip_line: bool = False) -> None:
         """
         Print a summary of the DMD model.
         """
+
         msg = '===== DMD Summary ====='
         header = '='*len(msg)
+        if skip_line:
+            print()
         print('\n'.join([header, msg, header]))
         print(f"{'# of Modes':<20}: {self.n_modes}")
         print(f"{'# of Snapshots':<20}: {self.n_snapshots}")

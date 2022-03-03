@@ -19,12 +19,14 @@ def compute_rank(svd_rank: Union[int, float],
     Parameters
     ----------
     svd_rank : int or float, default 0
-        The rank for the truncation. If 0, the method computes the
-        optimal rank and uses it for truncation. If positive interger, the
-        method uses the argument for the truncation. If float between 0 and 1,
-        the rank is the number of the biggest singular values that are needed
-        to reach the 'energy' specified by `svd_rank`. If -1, the method does
-        not compute truncation.
+        The rank for the truncation.
+        If 0, the method computes the optimal rank and uses it for truncation.
+        If positive interger, the method uses the argument for the truncation.
+        If a float between 0.1 and 1, the rank is the number of singular
+            values needed to reach the 'energy' specified by `svd_rank`.
+        If a float between 0.0 and 0.1, all relative singular values greater
+            than `svd_rank` are used.
+        If -1, the method does not use truncation.
     X : ndarray
         Input matrix.
     U : ndarray (X.shape[0], min(X.shape))
@@ -49,9 +51,14 @@ def compute_rank(svd_rank: Union[int, float],
         rank = np.sum(s > tau)
 
     # Compute energy based rank
-    elif 0 < svd_rank < 1:
+    elif 0.1 < svd_rank < 1.0:
         cumulative_energy = np.cumsum(s**2 / sum(s**2))
         rank = np.searchsorted(cumulative_energy, svd_rank) + 1
+
+    # Compute singular value based rank
+    elif 0.0 < svd_rank <= 0.1:
+        s_rel = s / max(s)
+        rank = len(s_rel[s_rel > svd_rank])
 
     # Fixed rank
     elif svd_rank >= 1 and isinstance(svd_rank, int):

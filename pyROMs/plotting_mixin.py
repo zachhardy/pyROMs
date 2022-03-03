@@ -52,13 +52,14 @@ class PlottingMixin:
 
         # Make figure
         plt.figure()
-        plt.xlabel('n', fontsize=12)
+        plt.xlabel('Mode Number', fontsize=12)
         plt.ylabel('Singular Value' if not normalized
-                   else 'Relative Singular Value')
+                   else 'Relative Singular Value', fontsize=12)
         plotter(svals, '-*b')
         if show_rank:
             plt.axhline(svals[self.n_modes - 1], color='r',
                         xmin=0, xmax=len(svals) - 1)
+        plt.grid()
         plt.tight_layout()
         if filename is not None:
             base, ext = splitext(filename)
@@ -100,7 +101,7 @@ class PlottingMixin:
 
         if mode_indices is None:
             mode_indices = list(range(self.n_modes))
-        elif isinstance(mode_indices, int):
+        elif isinstance(mode_indices, (int, np.int64)):
             mode_indices = [mode_indices]
 
         if components is None:

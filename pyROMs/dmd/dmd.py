@@ -49,8 +49,7 @@ class DMD(DMDBase):
                  sorted_eigs: Union[bool, str] = None) -> None:
         super().__init__(svd_rank, exact, opt, sorted_eigs)
 
-    def fit(self, X: Union[ndarray, Iterable],
-            svd_rank: Union[int, float] = None) -> 'DMD':
+    def fit(self, X: Union[ndarray, Iterable], **kwargs) -> 'DMD':
         """
         Fit the DMD model to input snpshots X.
 
@@ -59,8 +58,10 @@ class DMD(DMDBase):
         X : ndarray or iterable
             The input snapshots.
         """
-        if svd_rank is not None:
-            self.svd_rank = svd_rank
+        params = ['svd_rank', 'opt', 'exact']
+        for param in params:
+            if param in kwargs:
+                setattr(self, param, kwargs.get(param))
 
         # Format the data
         X, orig_shape = _row_major_2darray(X)
@@ -69,7 +70,8 @@ class DMD(DMDBase):
         self._snapshots_shape = orig_shape
 
         # Define default time steps
-        self.original_time = {'t0': 0, 'tend': self.n_snapshots - 1, 'dt': 1}
+        if self.original_time == {}:
+            self.original_time = {'t0': 0, 'tend': self.n_snapshots - 1, 'dt': 1}
         self.dmd_time = self.original_time.copy()
 
         # Form submatrices
@@ -101,7 +103,8 @@ class DMD(DMDBase):
 
         return self
 
-    def find_optimal_parameters(self) -> None:
+    def find_optimal_parameters(
+            self, verbose: bool = False, **kwargs) -> None:
         """
         Perform a parameter search to find the optimal parameters to
         minimize the error of the DMD model.
@@ -112,6 +115,8 @@ class DMD(DMDBase):
 
         # Loop over each set of parameters
         errors = []
+        if verbose:
+            print("\nSeeking optimal parameters...")
         for rank, exact, opt in cases:
             self.svd_rank = rank
             self.exact = exact
@@ -124,3 +129,8 @@ class DMD(DMDBase):
         self.exact = cases[argmin][1]
         self.opt = cases[argmin][2]
         self.fit(self.snapshots)
+        if verbose:
+            print(f"Optimal Parameters:"
+                  f"\n\t# of Modes:\t{cases[argmin][0]}"
+                  f"\n\tExact Modes:\t{cases[argmin][1]}"
+                  f"\n\tOpt:\t\t{cases[argmin][2]}")
