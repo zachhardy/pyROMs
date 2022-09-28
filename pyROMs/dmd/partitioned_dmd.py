@@ -5,8 +5,10 @@ import numpy as np
 from numpy import ndarray
 from numpy.linalg import norm
 
-from .dmd_base import DMDBase
 from typing import List, Union, Tuple, Iterable
+
+from .dmd_base import DMDBase
+from ..utils import _row_major_2darray
 
 
 class PartitionedDMD(DMDBase):
@@ -66,6 +68,46 @@ class PartitionedDMD(DMDBase):
             yield i, self.dmd_list[i]
 
     @property
+    def n_snapshots(self) -> List[int]:
+        return [dmd.n_snapshots for dmd in self]
+
+    @property
+    def n_modes(self) -> List[int]:
+        return [dmd.n_modes for dmd in self]
+
+    @property
+    def Atilde(self) -> List[ndarray]:
+        return [dmd.Atilde for dmd in self]
+
+    @property
+    def eigvals(self) -> List[ndarray]:
+        return [dmd.eigvals for dmd in self]
+
+    @property
+    def omegas(self) -> List[ndarray]:
+        return [dmd.omegas for dmd in self]
+
+    @property
+    def frequency(self) -> List[ndarray]:
+        return [dmd.frequency for dmd in self]
+
+    @property
+    def eigvecs(self) -> List[ndarray]:
+        return [dmd.eigvecs for dmd in self]
+
+    @property
+    def modes(self) -> List[ndarray]:
+        return [dmd.modes for dmd in self]
+
+    @property
+    def amplitudes(self) -> List[ndarray]:
+        return [dmd.amplitudes for dmd in self]
+
+    @property
+    def dynamics(self) -> List[ndarray]:
+        return [dmd.dynamics for dmd in self]
+
+    @property
     def n_partitions(self) -> int:
         return len(self.partition_points) + 1
 
@@ -82,10 +124,6 @@ class PartitionedDMD(DMDBase):
         return [dmd.svd_rank for dmd in self]
 
     @property
-    def tlsq_rank(self) -> List[int]:
-        return [dmd.tlsq_rank for dmd in self]
-
-    @property
     def exact(self) -> List[bool]:
         return [dmd.exact for dmd in self]
 
@@ -94,29 +132,21 @@ class PartitionedDMD(DMDBase):
         return [dmd.opt for dmd in self]
 
     @property
-    def rescale_mode(self) -> List[Union[str, None, ndarray]]:
-        return [dmd.rescale_mode for dmd in self]
-
-    @property
-    def forward_backward(self) -> List[bool]:
-        return [dmd.forward_backward for dmd in self]
-
-    @property
     def reconstructed_data(self) -> ndarray:
         """
         Get the reconstructed data.
 
         Returns
         -------
-        ndarray (n_features, n_snapshots)
+        ndarray (n_snapshots, n_features)
         """
         for p in range(self.n_partitions):
             Xp = self.dmd_list[p].reconstructed_data
-            X = Xp if p == 0 else np.hstack((X, Xp))
+            X = Xp if p == 0 else np.vstack((X, Xp))
         return X
 
     @property
-    def snapshot_reconstruction_errors(self) -> ndarray:
+    def snapshot_errors(self) -> ndarray:
         """
         Get the reconstruction error per snapshot.
 
@@ -126,7 +156,7 @@ class PartitionedDMD(DMDBase):
         """
         errors = []
         for dmd in self:
-            errors.extend(dmd.snapshot_reconstruction_errors)
+            errors.extend(dmd.snapshot_errors)
         return np.array(errors)
 
     def partial_modes(self, partition: int) -> ndarray:
@@ -174,7 +204,7 @@ class PartitionedDMD(DMDBase):
         -------
         ndarray (n_modes[partition],)
         """
-        return self.dmd_list[partition].eigs
+        return self.dmd_list[partition].eigvals
 
     def partial_reconstructed_data(self, partition: int) -> ndarray:
         """
@@ -247,13 +277,15 @@ class PartitionedDMD(DMDBase):
             The input snapshots
         """
         # Set the snapshots
-        self._snapshots, self._snapshots_shape = self._col_major_2darray(X)
+        X, Xshape = _row_major_2darray(X)
+        self._snapshots = X
+        self._snapshots_shape = Xshape
 
         # Check partitions and options
         if self.partition_points is None:
             raise ValueError('The partition points must be set '
                              'before calling fit.')
-        if any([p >= self.n_snapshots for p in self.partition_points]):
+        if any([p >= self._snapshots.shape[0] for p in self.partition_points]):
             raise ValueError('Partition indices must be less the number of '
                              'snapshots in the input data.')
         if self.options is not None:
@@ -268,10 +300,10 @@ class PartitionedDMD(DMDBase):
             if p < self.n_partitions - 1:
                 end = self.partition_points[p]
             else:
-                end = self.n_snapshots - 1
+                end = self._snapshots.shape[0] - 1
 
             # Define the partitioned dataset
-            Xp = self._snapshots[:, start:end + 1]
+            Xp = self._snapshots[start:end + 1]
 
             # Fit the submodel
             self.dmd_list[p].fit(Xp)
@@ -279,7 +311,9 @@ class PartitionedDMD(DMDBase):
             # Shift the start point
             start = end + 1
 
-        self._original_time = {'t0': 0, 'tend': self.n_snapshots, 'dt': 1}
+        self._original_time = {"t0": 0,
+                               "tend": self._snapshots.shape[0] - 1,
+                               "dt": 1}
         self._dmd_time = self.original_time.copy()
         return self
 
@@ -290,6 +324,51 @@ class PartitionedDMD(DMDBase):
         """
         for dmd in self:
             dmd.find_optimal_parameters()
+
+    def print_summary(self, skip_line: bool = False) -> None:
+        """
+        Print a summary of the DMD model.
+        """
+        msg = "===== DMD Summary ====="
+        header = "="*len(msg)
+        if skip_line:
+            print()
+        print("\n".join([header, msg, header]))
+        print(f"{'# of Modes':<20}: {sum(self.n_modes)}")
+        print(f"{'# of Snapshots':<20}: {sum(self.n_snapshots)}")
+        print(f"{'Reconstruction Error':<20}: "
+              f"{self.reconstruction_error:.3e}")
+        print(f"{'Mean Snapshot Error':<20}: "
+              f"{np.mean(self.snapshot_errors):.3e}")
+        print(f"{'Max Snapshot Error':<20}: "
+              f"{np.max(self.snapshot_errors):.3e}")
+
+    def print_partition_summaries(self, skip_line: bool = False) -> None:
+        labels = ["# of Modes", "# of Snapshots", "Reconstruction Errors",
+                  "Mean Snapshot Errors", "Max Snapshot Errors"]
+
+        reconstruction_errors = [dmd.reconstruction_error for dmd in self]
+        mean_snapshot_errors = [np.mean(dmd.snapshot_errors) for dmd in self]
+        max_snapshot_errors = [np.max(dmd.snapshot_errors) for dmd in self]
+        data = [self.n_modes, self.n_snapshots, reconstruction_errors,
+                mean_snapshot_errors, max_snapshot_errors]
+
+        msg = f"===== Summary of {self.n_partitions} Partitions ====="
+        header = "=" * len(msg)
+        if skip_line:
+            print()
+        print("\n".join([header, msg, header]))
+        for i in range(len(labels)):
+            msg = f"{labels[i]:<20}: "
+            if i < 2:
+                msg += f"{data[i]}"
+            else:
+                msg += "["
+                for p in range(self.n_partitions):
+                    msg += ", " if p > 0 else ""
+                    msg += f"{data[i][p]:.3e}"
+                msg += "]"
+            print(msg)
 
     def _build_partitions(self) -> None:
         """

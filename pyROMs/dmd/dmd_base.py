@@ -1,21 +1,20 @@
 import numpy as np
 from numpy import ndarray
-
-from numpy.linalg import svd
-from numpy.linalg import norm
+from numpy.linalg import norm, svd, eig, multi_dot
 
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.axes import Axes
 
 from os.path import splitext
-from typing import Union, List, Iterable
+from typing import Union, Iterable, List
 
 from ..plotting_mixin import PlottingMixin
-from pydmd.dmdbase import DMDBase as PyDMDBase
+
+InputType = Union[ndarray, Iterable]
 
 
-class DMDBase(PlottingMixin, PyDMDBase):
+class DMDBase(PlottingMixin):
     """
     Dynamic Mode Decomposition base class inherited from PyDMD.
 
@@ -28,32 +27,13 @@ class DMDBase(PlottingMixin, PyDMDBase):
         the rank is the number of the biggest singular values that are needed
         to reach the 'energy' specified by `svd_rank`. If -1, the method does
         not compute truncation.
-    tlsq_rank : int, default 0
-        Rank truncation computing Total Least Square. Default is 0,
-        which means no truncation.
     exact : bool, default False
         Flag to compute either exact DMD or projected DMD.
     opt : bool or int, default False
-        If True, amplitudes are computed like in optimized DMD  (see
-        :func:`~dmdbase.DMDBase._compute_amplitudes` for reference). If
-        False, amplitudes are computed following the standard algorithm. If
-        `opt` is an integer, it is used as the (temporal) index of the snapshot
-        used to compute DMD modes amplitudes (following the standard algorithm).
-        The reconstruction will generally be better in time instants near the
-        chosen snapshot; however increasing `opt` may lead to wrong results when
-        the system presents small eigenvalues. For this reason a manual
-        selection of the number of eigenvalues considered for the analyisis may
-        be needed (check `svd_rank`). Also setting `svd_rank` to a value between
-        0 and 1 may give better results.
-    rescale_mode : {'auto'}, None, or ndarray, default None
-        Scale Atilde as shown in 10.1016/j.jneumeth.2015.10.010 (section 2.4)
-        before computing its eigendecomposition. None means no rescaling,
-        'auto' means automatic rescaling using singular values, otherwise the
-        scaling factors.
-    forward_backward : bool, default False
-        If True, the low-rank operator is computed
-        like in fbDMD (reference: https://arxiv.org/abs/1507.02264).
-    sorted_eigs : {'real', 'abs'} or False, default False
+        If True, optimal amplitudes are computes. If False, the
+        amplitudes are computed via a fit to the first snapshot. If an int,
+        they are computed via a fit to the specifiec snapshot indes.
+    sorted_eigs : {'real', 'abs'} or None, default None
          Sort eigenvalues (and modes/dynamics accordingly) by
         magnitude if `sorted_eigs='abs'`, by real part (and then by imaginary
         part to break ties) if `sorted_eigs='real'`.
@@ -61,134 +41,428 @@ class DMDBase(PlottingMixin, PyDMDBase):
 
     def __init__(self,
                  svd_rank: Union[int, float] = 0,
-                 tlsq_rank: int = 0,
                  exact: bool = False,
                  opt: Union[bool, int] = False,
-                 rescale_mode: Union[str, None, ndarray] = None,
-                 forward_backward: bool = False,
-                 sorted_eigs: Union[bool, str] = False) -> None:
-        PyDMDBase.__init__(self, svd_rank, tlsq_rank, exact, opt,
-                           rescale_mode, forward_backward, sorted_eigs)
+                 sorted_eigs: Union[bool, str] = None) -> None:
 
-        self._svd_modes: ndarray = None  # svd modes
-        self._svd_vals: ndarray = None  # singular values
+        # Model parameters
+        self.svd_rank: Union[int, float] = svd_rank
+        self.exact: bool = exact
+        self.opt: Union[bool, int] = opt
+        self.sorted_eigs: str = sorted_eigs
 
-    @property
-    def opt(self) -> Union[bool, int]:
-        return self._opt
+        # Training information
+        self._snapshots: ndarray = None
+        self._snapshots_shape: tuple = None
 
-    @opt.setter
-    def opt(self, value: Union[bool, int]) -> None:
-        self._opt = value
+        self.original_time: dict = {}
+        self.dmd_time: dict = {}
 
-    @property
-    def tlsq_rank(self) -> int:
-        return self._tlsq_rank
+        # SVD information
+        self._U: ndarray = None
+        self._s: ndarray = None
+        self._V: ndarray = None
 
-    @tlsq_rank.setter
-    def tlsq_rank(self, value: int) -> None:
-        self._tlsq_rank = value
-
-    @property
-    def svd_rank(self) -> Union[int, float]:
-        return self.operator._svd_rank
-
-    @svd_rank.setter
-    def svd_rank(self, value: Union[int, float]) -> None:
-        self.operator._svd_rank = value
-
-    @property
-    def rescale_mode(self) -> Union[str, None, ndarray]:
-        return self.operator._rescale_mode
-
-    @rescale_mode.setter
-    def rescale_mode(self, value: Union[str, None, ndarray]) -> None:
-        self.operator._rescale_mode = value
-
-    @property
-    def exact(self) -> bool:
-        return self.operator._exact
-
-    @exact.setter
-    def exact(self, value: bool) -> None:
-        self.operator._exact = value
-
-    @property
-    def forward_backward(self) -> bool:
-        return self.operator._forward_backward
-
-    @forward_backward.setter
-    def forward_backward(self, value: bool) -> None:
-        self.operator._forward_backward = value
+        # DMD information
+        self._Atilde: ndarray = None
+        self._eigvals: ndarray = None
+        self._omegas: ndarray = None
+        self._eigvecs: ndarray = None
+        self._modes: ndarray = None
+        self._b: ndarray = None
 
     @property
     def n_snapshots(self) -> int:
-        return self.snapshots.shape[1]
+        return self._snapshots.shape[0]
 
     @property
     def n_features(self) -> int:
-        return self.snapshots.shape[0]
+        return self._snapshots.shape[1]
 
     @property
     def n_modes(self) -> int:
-        return self.modes.shape[1]
+        return self._modes.shape[1]
 
     @property
-    def singular_values(self) -> ndarray:
-        if self._svd_vals is None:
-            if self._snapshots is not None:
-                _, self._svd_vals, _ = svd(self._snapshots[:, :-1])
-        return self._svd_vals
+    def snapshots(self) -> ndarray:
+        """
+        Get the original training data.
+
+        Returns
+        -------
+        ndarray (n_snapshots, n_features)
+        """
+        return self._snapshots
 
     @property
-    def svd_modes(self) -> ndarray:
-        return self._svd_modes
+    def Atilde(self) -> ndarray:
+        """
+        Get the reduced-order evolution operator.
+
+        Returns
+        -------
+        ndarray (n_modes, n_modes)
+        """
+        return self._Atilde
+
+    @property
+    def eigvals(self) -> ndarray:
+        """
+        Get the eigenvalues from the DMD model.
+
+        Returns
+        -------
+        ndarray (n_modes,)
+        """
+        return self._eigvals
+
+    @property
+    def omegas(self) -> ndarray:
+        """
+        Get the continuous time-eigenvalues of the modes.
+
+        Returns
+        -------
+        ndarray (n_modes,)
+        """
+        if self._omegas is None:
+            omegas = np.log(self.eigvals)/self.original_time["dt"]
+            for i in range(len(omegas)):
+                if omegas[i].imag % np.pi < 1.0e-12:
+                    omegas[i] = omegas[i].real + 0.0j
+            self._omegas = omegas
+        return self._omegas
+
+    @property
+    def frequency(self) -> ndarray:
+        """
+        Get the dynamic frequencies of the modes.
+
+        Returns
+        -------
+        ndarray (n_modes,)
+        """
+        return self.omegas.imag / (2.0*np.pi)
+
+    @property
+    def eigvecs(self) -> ndarray:
+        """
+        Get the low-dimensional eigenvectors, column-wise.
+
+        Returns
+        -------
+        ndarray (n_modes, n_modes)
+        """
+        return self._eigvecs
+
+    @property
+    def modes(self) -> ndarray:
+        """
+        Get the high-dimensional dynamic modes, column-wise.
+
+        Returns
+        -------
+        ndarray (n_features, n_modes)
+        """
+        return self._modes
+
+    @property
+    def amplitudes(self) -> ndarray:
+        """
+        Get the amplitudes of the modes.
+
+        Returns
+        -------
+        ndarray (n_modes,)
+        """
+        return self._b
+
+    @property
+    def dynamics(self) -> ndarray:
+        """
+        Get the time evolution of each mode.
+
+        Returns
+        -------
+        ndarray (n_modes, varies)
+        """
+        # Compute base matrix of eigvals
+        base = np.repeat(self.eigvals[:, None],
+                         self.dmd_timesteps.shape[0],
+                         axis=1)
+
+        # Compute the powers for each snapshot
+        powers = np.divide(self.dmd_timesteps - self.original_time['t0'],
+                           self.original_time['dt'])
+
+        # Compute \Lambda^{(t - t0)/dt} * b
+        return np.power(base, powers) * self._b[:, None]
+
+    @property
+    def original_timesteps(self) -> ndarray:
+        """
+        Get the timesteps of the original snapshots.
+
+        Returns
+        -------
+        ndarray (n_snapshots - 1,)
+        """
+        return np.arange(
+            self.original_time['t0'],
+            self.original_time['tend'] + self.original_time['dt'],
+            self.original_time['dt']
+        )
+
+    @property
+    def dmd_timesteps(self) -> ndarray:
+        """
+        Get the timesteps of the reconstructed snapshots.
+
+        Returns
+        -------
+        ndarray (n_snapshots - 1,)
+        """
+        return np.arange(
+            self.dmd_time['t0'],
+            self.dmd_time['tend'] + self.dmd_time['dt'],
+            self.dmd_time['dt']
+        )
+
+    @property
+    def reconstructed_data(self) -> ndarray:
+        """
+        Get the reconstructed snapshots.
+
+        Returns
+        -------
+        ndarray (n_snapshots, n_features)
+        """
+        return np.transpose(self._modes.dot(self.dynamics))
 
     @property
     def reconstruction_error(self) -> float:
         """
-        Get the reconstruction error over the snapshots.
+        Compute the reconstruction error between the snapshots
+        and the reconstructed data.
 
         Returns
         -------
         float
         """
-        X: ndarray = self.snapshots
-        Xdmd: ndarray = self.reconstructed_data
-        return norm(X - Xdmd) / norm(X)
+        X: ndarray = self._snapshots
+        X_dmd: ndarray = self.reconstructed_data
+        return norm(X - X_dmd) / norm(X)
 
     @property
-    def snapshot_reconstruction_errors(self) -> ndarray:
+    def snapshot_errors(self) -> ndarray:
         """
-        Get the reconstruction error at each snapshot.
+        Compute the reconstruction error for each snapshot.
 
         Returns
         -------
         ndarray (n_snapshots,)
         """
-        X: ndarray = self.snapshots
-        Xdmd: ndarray = self.reconstructed_data
-        return norm(X-Xdmd, axis=0) / norm(X, axis=0)
+        X: ndarray = self._snapshots
+        X_dmd: ndarray = self.reconstructed_data
+        return norm(X - X_dmd, axis=1)/norm(X, axis=1)
 
-    def fit(self, X: Union[ndarray, Iterable]):
+    @property
+    def left_svd_modes(self) -> ndarray:
         """
-        Abstract method to fit the snapshots matrices.
+        Get the left singular vectors, column-wise.
 
-        Not implemented, it has to be implemented in subclasses.
+        Returns
+        -------
+        ndarray (n_features, n_snapshots - 1)
+        """
+        return self._U
+
+    @property
+    def right_svd_modes(self) -> ndarray:
+        """
+        Get the right singular vectors, column-wise.
+
+        Returns
+        -------
+        ndarray (n_snapshots - 1,) * 2
+        """
+        return self._V
+
+    @property
+    def singular_values(self) -> ndarray:
+        """
+        Get the singular values vector.
+
+        Returns
+        -------
+        ndarray (n_snapshots - 1,)
+        """
+        return self._s
+
+    def fit(self, X: InputType) -> 'DMDBase':
+        """
+        Abstract method to fit the DMD model to inputs X.
+        It has to be implemented in subclasses.
+
+        Parameters
+        ----------
+        X : ndarray or iterable
+            The input snapshots.
         """
         raise NotImplementedError(
-            f'Subclass must implement abstract '
-            f'method {self.__class__.__name__}.fit')
+            f'Subclass must implement the method '
+            f'{self.__class__.__name__}.fit')
 
-    def find_optimal_parameters(self) -> None:
+    def find_optimal_parameters(self, verbose: False) -> None:
         """
-        Abstract method to find optimal hyper-parameters
-
+        Abstract method to find optimal hyper-parameters.
         Not implemented, it has to be implemented in subclasses.
         """
         raise NotImplementedError(
             f'Subclass must implement abstract method '
             f'{self.__class__.__name__}.find_optimal_parameters')
+
+    @staticmethod
+    def _compute_Atilde(U: ndarray, s: ndarray,
+                        V: ndarray, Y: ndarray) -> ndarray:
+        """
+        Compute the low-rank evolution operator `Atilde`.
+
+        Parameters
+        ----------
+        U : ndarray (n_features, n_modes)
+            The left singular vectors.
+        s : ndarray (n_modes,)
+            The singular values vector.
+        V : ndarray (n_snapshots - 1, n_modes)
+            The right singular vectors.
+        Y : ndarray (n_features, n_snapshots - 1)
+            Matrix containing snapshots x_1, ..., x_n,
+            column-wise.
+
+        Returns
+        -------
+        ndarray (n_modes, n_modes)
+        """
+        return multi_dot([np.conj(U.T), Y, V]) * np.reciprocal(s)
+
+    def _decompose_Atilde(self) -> None:
+        """
+        Compute the eigendecomposition of the low-rank
+        evolution operator `Atilde`.
+        """
+        # Compute the eigendecomposition
+        eigvals, eigvecs = eig(self._Atilde)
+        self._eigvals = np.array(eigvals, dtype=complex)
+        self._eigvecs = np.array(eigvecs, dtype=complex)
+
+        # Determine the sorting routine
+        if self.sorted_eigs is not None:
+            if self.sorted_eigs == 'abs':
+                def k(tp):
+                    return abs(tp[0])
+            elif self.sorted_eigs == 'real':
+                def k(tp):
+                    eig = tp[0]
+                    if isinstance(eig, complex):
+                        return eig.real, eig.imag
+                    return eig.real, 0.0
+            else:
+                raise ValueError(f'Invalid value for sorted_eigs.')
+
+            # Sort based on sorting function k
+            eigpairs = zip(self._eigvals, self._eigvecs)
+            a, b = zip(*sorted(eigpairs, key=k)[::-1])
+            self._eigvals = np.array([val for val in a])
+            self._eigvecs = np.array([vec for vec in b]).T
+
+    def _compute_modes(self, U: ndarray, s: ndarray,
+                       V: ndarray, Y: ndarray) -> None:
+        """
+        Private method to compute the high-dimensional dynamic
+        modes after performing an eigendecomposition of `Atilde`.
+
+        Parameters
+        ----------
+        U : ndarray (n_features, n_modes)
+            The left singular vectors, column-wise.
+        s : ndarray (n_modes,)
+            The singular values vector.
+        V : ndarray (n_snapshots - 1, n_modes)
+            The right singular vectors, column-wise.
+        Y : ndarray (n_features, n_snapshots - 1)
+            Matrix containing snapshots x_1, ..., x_n,
+            column-wise
+        """
+        if self.exact:
+            self._modes = (Y.dot(V) * np.reciprocal(s)).dot(self._eigvecs)
+        else:
+            self._modes = U.dot(self._eigvecs)
+
+    def _compute_amplitudes(self) -> ndarray:
+        """
+        Compute the amplitude coefficients according to the
+        `self.opt` parameter.
+        """
+        # Optimized amplitudes
+        if isinstance(self.opt, bool) and self.opt:
+            # Compute Vandermonde matrix
+            vander = np.vander(self.eigvals,
+                               len(self.dmd_timesteps),
+                               True)
+
+            # Perform SVD on all snapshots
+            U, s, V = svd(self._snapshots.T, False)
+
+            # Compute LHS, RHS
+            P = np.multiply(
+                np.dot(self.modes.conj().T, self.modes),
+                np.conj(np.dot(vander, vander.conj().T))
+            )
+
+            tmp = np.linalg.multi_dot([U, np.diag(s), V]).conj().T
+            q = np.conj(np.diag(multi_dot([vander, tmp, self.modes])))
+
+            # Solve Pb = q
+            b = np.linalg.solve(P, q)
+
+        # Amplitudes fit to a specific snapshot
+        else:
+            if isinstance(self.opt, bool):
+                snapshot_idx = 0
+            else:
+                snapshot_idx = self.opt
+
+            b = np.linalg.lstsq(
+                self._modes,
+                self._snapshots[snapshot_idx],
+                rcond=None)[0]
+
+        # Ensure positive amplitudes
+        # for i in range(self.n_modes):
+        #     if b[i] < 0.0:
+        #         b[i] *= -1.0
+        #         self._modes[:, i] *= -1.0
+        return b
+
+    def print_summary(self, skip_line: bool = False) -> None:
+        """
+        Print a summary of the DMD model.
+        """
+
+        msg = '===== DMD Summary ====='
+        header = '='*len(msg)
+        if skip_line:
+            print()
+        print('\n'.join([header, msg, header]))
+        print(f"{'# of Modes':<20}: {self.n_modes}")
+        print(f"{'# of Snapshots':<20}: {self.n_snapshots}")
+        print(f"{'Reconstruction Error':<20}: "
+              f"{self.reconstruction_error:.3e}")
+        print(f"{'Mean Snapshot Error':<20}: "
+              f"{np.mean(self.snapshot_errors):.3e}")
+        print(f"{'Max Snapshot Error':<20}: "
+              f"{np.max(self.snapshot_errors):.3e}")
 
     def plot_dynamics(self,
                       mode_indices: List[int] = None,
@@ -222,7 +496,7 @@ class DMDBase(PlottingMixin, PyDMDBase):
         for idx in mode_indices:
             idx += 0 if idx > 0 else self.n_modes
             dynamic: ndarray = self.dynamics[idx] / self._b[idx]
-            omega = np.log(self.eigs[idx]) / self.original_time['dt']
+            omega = np.log(self.eigvals[idx]) / self.original_time['dt']
 
             # Make figure
             fig: Figure = plt.figure()
@@ -241,17 +515,3 @@ class DMDBase(PlottingMixin, PyDMDBase):
             if filename is not None:
                 base, ext = splitext(filename)
                 plt.savefig(base + f'_{idx}.pdf')
-
-    def print_summary(self) -> None:
-        """
-        Print a summary of the DMD model.
-        """
-        msg = '===== DMD Summary ====='
-        header = '='*len(msg)
-        print('\n'.join(['', header, msg, header]))
-        print(f"{'# of Modes':<20}: {self.n_modes}")
-        print(f"{'# of Snapshots':<20}: {self.n_snapshots}")
-        print(f"{'Reconstruction Error':<20}: "
-              f"{self.reconstruction_error:.3e}")
-        print(f"{'Max Snapshot Error':<20}: "
-              f"{np.max(self.snapshot_reconstruction_errors):.3e}")

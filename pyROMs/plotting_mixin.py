@@ -45,20 +45,21 @@ class PlottingMixin:
         # Format the singular values
         svals = self.singular_values
         if normalized:
-            svals /= sum(svals)
+            svals = svals / max(svals)
 
         # Define the plotter
         plotter = plt.semilogy if logscale else plt.plot
 
         # Make figure
         plt.figure()
-        plt.xlabel('n', fontsize=12)
+        plt.xlabel('Mode Number', fontsize=12)
         plt.ylabel('Singular Value' if not normalized
-                   else 'Relative Singular Value')
+                   else 'Relative Singular Value', fontsize=12)
         plotter(svals, '-*b')
         if show_rank:
-            plt.axvline(self.n_modes - 1, color='r',
-                        ymin=svals.min(), ymax=svals.max())
+            plt.axhline(svals[self.n_modes - 1], color='r',
+                        xmin=0, xmax=len(svals) - 1)
+        plt.grid()
         plt.tight_layout()
         if filename is not None:
             base, ext = splitext(filename)
@@ -100,7 +101,7 @@ class PlottingMixin:
 
         if mode_indices is None:
             mode_indices = list(range(self.n_modes))
-        elif isinstance(mode_indices, int):
+        elif isinstance(mode_indices, (int, np.int64)):
             mode_indices = [mode_indices]
 
         if components is None:
@@ -178,7 +179,7 @@ class PlottingMixin:
         # Plot each snapshot
         for idx in snapshot_indices:
             idx += 0 if idx >= 0 else self.n_snapshots
-            snapshot: ndarray = self.snapshots[:, idx].real
+            snapshot: ndarray = self.snapshots[idx].real
 
             # Make figure
             fig: Figure = plt.figure()
@@ -313,7 +314,7 @@ class PlottingMixin:
             A location to save the plot to, if specified.
         """
         # Check the inputs
-        if self._snapshots is None:
+        if self.snapshots is None:
             raise ValueError('No input snapshots found.')
 
         if x is None and y is None:
@@ -350,7 +351,7 @@ class PlottingMixin:
         # Plot each mode specified
         for idx in snapshot_indices:
             idx += 0 if idx >= 0 else self.n_snapshots
-            snapshot: ndarray = self.snapshots[:, idx]
+            snapshot: ndarray = self.snapshots[idx]
 
             # Make figure
             fig: Figure = plt.figure()
