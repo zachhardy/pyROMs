@@ -133,7 +133,8 @@ class POD_MCI(POD):
     def refit(
             self,
             svd_rank: Union[int, float],
-            interpolant: str = "rbf"
+            interpolant: str = "rbf",
+            **kwargs
     ) -> 'POD_MCI':
         """
         Re-fit the POD-MCI model to the specified SVD rank with
@@ -152,12 +153,23 @@ class POD_MCI(POD):
             function interpolant with a thin plate spline kernel funciton.
             If an alternative kernel function is desired for a radial basis
             function interpolant, it should be specified via 'rbf_<kernel>'.
+        kwargs : varies
+            epsilon : float
+                The shape parameter for some types of kernel functions
+            neighbors : int
+                The number of neighbors to use to query the radial basis
+                function interpolant with. Default uses all data points.
+            degree : int
+                The degree of an added polynomial term. See scipy
+                documentation for more.
 
         Returns
         -------
         POD_MCI
         """
         super().refit(svd_rank)
+        self._interp_method = interpolant
+        self._interp_args = kwargs
         self._init_interpolant()
 
     def predict(self, Y: np.ndarray) -> np.ndarray:
