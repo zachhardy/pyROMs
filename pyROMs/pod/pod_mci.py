@@ -32,7 +32,7 @@ class POD_MCI(POD):
             truncation is performed.
         interpolant : {'linear', 'cubic', 'nearest', 'rbf', 'rbf_<kernel>'}
             The interpolation method to use. Default uses a radial basis
-            function interpolant with a thin plate spline kernel funciton.
+            function interpolant with a thin plate spline kernel function.
             If an alternative kernel function is desired for a radial basis
             function interpolant, it should be specified via 'rbf_<kernel>'.
         kwargs : varies
@@ -150,7 +150,7 @@ class POD_MCI(POD):
             truncation is performed.
         interpolant : {'linear', 'cubic', 'nearest', 'rbf', 'rbf_<kernel>'}
             The interpolation method to use. Default uses a radial basis
-            function interpolant with a thin plate spline kernel funciton.
+            function interpolant with a thin plate spline kernel function.
             If an alternative kernel function is desired for a radial basis
             function interpolant, it should be specified via 'rbf_<kernel>'.
         kwargs : varies
@@ -220,20 +220,20 @@ class POD_MCI(POD):
                 else:
                     if self.n_parameters > 2:
                         msg = "Only 1D and 2D cases are implemented " \
-                              "for cubic interpolators."
+                              "for cubic interpolants."
                         raise NotImplementedError(msg)
 
                     from scipy.interpolate import CloughTocher2DInterpolator
                     interp = CloughTocher2DInterpolator(pts, vals, rescale=True)
 
-        # Radial basis function interpolators
+        # Radial basis function interpolants
         else:
 
             # Handle default case
             if "_" not in method:
                 method = f"{method}_thin_plate_spline"
 
-            # Parse kernel funciton
+            # Parse kernel function
             kernel = "_".join(method.split("_")[1:])
 
             from scipy.interpolate import RBFInterpolator
