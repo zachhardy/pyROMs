@@ -102,7 +102,7 @@ class ROMBase:
         if show_rank:
             s_last = s[len(self.modes[0]) - 1]
             plt.axhline(s_last, color='r',
-                        xmin=0, xmax=len(self.modes[0]) - 1)
+                        xmin=0, xmax=len(self.snapshots[0]) - 1)
         plt.grid(True)
         plt.tight_layout()
 
@@ -154,12 +154,12 @@ class ROMBase:
             raise AssertionError(msg)
 
         if mode_indices is None:
-            mode_indices = list(range(len(self.modes)))
+            mode_indices = list(range(len(self.modes[0])))
         elif isinstance(mode_indices, int):
             mode_indices = [mode_indices]
         else:
             for idx in mode_indices:
-                if idx < 0 or idx >= len(self.modes):
+                if idx < 0 or idx >= len(self.modes[0]):
                     msg = "Invalid mode index encountered."
                     raise ValueError(msg)
 
@@ -333,7 +333,7 @@ class ROMBase:
             raise AssertionError(msg)
 
         if mode_indices is None:
-            mode_indices = list(range(len(self.modes)))
+            mode_indices = list(range(len(self.modes[0])))
         elif isinstance(mode_indices, int):
             mode_indices = [mode_indices]
         else:
@@ -380,7 +380,7 @@ class ROMBase:
 
     def plot_snapshots_2d(
             self,
-            snapshot_idices: Union[int, list[int]] = None,
+            snapshot_indices: Union[int, list[int]] = None,
             components: Union[int, list[int]] = None,
             x: Union[list[float], np.ndarray] = None,
             y: Union[list[float], np.ndarray] = None,

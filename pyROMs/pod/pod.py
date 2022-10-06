@@ -322,11 +322,10 @@ class POD(ROMBase):
         print(f"{'Max Snapshot Error':<20}: "
               f"{np.max(self.snapshot_errors):.3g}\n")
 
-
     def plot_coefficients(
             self,
             mode_indices: Union[int, list[int]] = None,
-            one_plot: bool =True,
+            one_plot: bool = True,
             filename: str = None
     ) -> None:
         """
@@ -367,7 +366,7 @@ class POD(ROMBase):
                 for idx in mode_indices:
                     vals = amplitudes[idx] / max(abs(amplitudes[idx]))
                     plt.plot(y, vals, '-*', label=f"Mode {idx}")
-                plt.legend()
+                plt.legend(loc='upper left', bbox_to_anchor=(1.01, 1))
                 plt.grid(True)
                 plt.tight_layout()
 
