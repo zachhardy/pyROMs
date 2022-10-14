@@ -41,7 +41,7 @@ class POD(ROMBase):
         self._rank: int = 0
         self._U: np.ndarray = None
         self._Sigma: np.ndarray = None
-        self._V: np.ndarray = None
+        self._Vstar: np.ndarray = None
 
         # Amplitudes
         self._b: np.ndarray = None
@@ -168,7 +168,7 @@ class POD(ROMBase):
         -------
         numpy.ndarray (n_snapshots, n_snapshots)
         """
-        return self._V
+        return np.conjugate(np.transpose(self._Vstar))
 
     @property
     def singular_values(self) -> np.ndarray:
