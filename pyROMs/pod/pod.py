@@ -87,7 +87,7 @@ class POD(ROMBase):
         self._snapshots_shape = Xshape
 
         # Perform the SVD
-        self._U, self._s, self._Vstar = svd(X, full_matrices=False)
+        self._U, self._s, self._Vstar = svd(X, False)
         self._rank = self._compute_rank()
 
         # Compute amplitudes
