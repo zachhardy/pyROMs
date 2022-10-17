@@ -6,8 +6,12 @@ from sklearn.gaussian_process.kernels import ConstantKernel
 from sklearn.gaussian_process.kernels import RBF
 
 from typing import Union
+from collections.abc import Iterable
 
 from .pod import POD
+
+SVDRank = Union[int, float]
+Snapshots = Parameters = Union[np.ndarray, Iterable]
 
 
 class POD_MCI(POD):
@@ -17,7 +21,7 @@ class POD_MCI(POD):
 
     def __init__(
             self,
-            svd_rank: Union[int, float] = -1,
+            svd_rank: SVDRank = -1,
             interpolant: str = "rbf",
             **kwargs
     ) -> None:
@@ -93,15 +97,15 @@ class POD_MCI(POD):
         """
         return self._interp_method
 
-    def fit(self, X: np.ndarray, Y: np.ndarray) -> 'POD_MCI':
+    def fit(self, X: Snapshots, Y: Parameters) -> 'POD_MCI':
         """
         Fit the POD-MCI model to the input data.
 
         Parameters
         ----------
-        X : numpy.ndarray
+        X : numpy.ndarray or Iterable
             The training snapshots.
-        Y : numpy.ndarray (n_snapshots, n_parameters), default None
+        Y : numpy.ndarray or Iterable
             The training parameters.
 
         Returns
@@ -132,7 +136,7 @@ class POD_MCI(POD):
 
     def refit(
             self,
-            svd_rank: Union[int, float],
+            svd_rank: SVDRank,
             interpolant: str = "rbf",
             **kwargs
     ) -> 'POD_MCI':
@@ -172,18 +176,18 @@ class POD_MCI(POD):
         self._interp_args = kwargs
         self._init_interpolant()
 
-    def predict(self, Y: np.ndarray) -> np.ndarray:
+    def predict(self, Y: Parameters) -> np.ndarray:
         """
         Predict a full-order result for a set of parameters.
 
         Parameters
         ----------
-        Y : numpy.ndarray (varies, n_parameters)
+        Y : numpy.ndarray (varies, n_parameters) or Iterable
             The query parameters.
 
         Returns
         -------
-        numpy.ndarray (n_features, varies)
+        numpy.ndarray (n_features, *)
         """
         if Y.shape[1] != self.n_parameters:
             msg = "The number of parameters per query must match " \
@@ -192,8 +196,8 @@ class POD_MCI(POD):
 
         if self._interp_method in ["linear", "cubic", "nearest"]:
             Y = Y.ravel() if self.n_parameters == 1 else Y
-        b = self._interpolant(Y)
-        return self.modes @ b.T
+        b = self._interpolant(Y).T
+        return self.modes @ b
 
     def _init_interpolant(self) -> None:
         """
@@ -201,7 +205,7 @@ class POD_MCI(POD):
         """
         method = self._interp_method
         kwargs = self._interp_args
-        pts, vals = self._parameters, self._b
+        pts, vals = self._parameters, self._b.T
 
         # Standard interpolants
         if method in ["linear", "cubic", "nearest"]:
@@ -211,11 +215,11 @@ class POD_MCI(POD):
             else:
                 if method == "linear":
                     from scipy.interpolate import LinearNDInterpolator
-                    interp = LinearNDInterpolator(pts, vals, rescale=True)
+                    interp = LinearNDInterpolator(pts, vals, True)
 
                 elif method == "nearest":
                     from scipy.interpolate import NearestNDInterpolator
-                    interp = NearestNDInterpolator(pts, vals, rescale=True)
+                    interp = NearestNDInterpolator(pts, vals, True)
 
                 else:
                     if self.n_parameters > 2:
@@ -224,7 +228,7 @@ class POD_MCI(POD):
                         raise NotImplementedError(msg)
 
                     from scipy.interpolate import CloughTocher2DInterpolator
-                    interp = CloughTocher2DInterpolator(pts, vals, rescale=True)
+                    interp = CloughTocher2DInterpolator(pts, vals, True)
 
         # Radial basis function interpolants
         else:

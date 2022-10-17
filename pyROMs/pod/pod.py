@@ -6,10 +6,19 @@ import matplotlib.pyplot as plt
 
 from numpy.linalg import norm
 from numpy.linalg import svd
+from scipy.linalg import pinv
 
-from typing import Union
+from typing import Union, Optional
+from collections.abc import Iterable
 
 from ..rom_base import ROMBase
+
+
+SVDRank = Union[int, float]
+Shape = tuple[int, ...]
+Indices = Components = Union[int, Iterable[int]]
+
+Snapshots = Parameters = Union[np.ndarray, Iterable]
 
 
 class POD(ROMBase):
@@ -20,7 +29,7 @@ class POD(ROMBase):
     plt.rcParams['text.usetex'] = True
     plt.rcParams['font.size'] = 12
 
-    def __init__(self, svd_rank: Union[int, float] = -1) -> None:
+    def __init__(self, svd_rank: SVDRank = -1) -> None:
         """
         Parameters
         ----------
@@ -32,64 +41,7 @@ class POD(ROMBase):
             truncation is performed.
         """
         super().__init__()
-
-        self._svd_rank: Union[int, float] = svd_rank
-
-        self._snapshots: np.ndarray = None
-        self._snapshots_shape: tuple[int, int] = None
-
-        # SVD information
-        self._rank: int = 0
-        self._U: np.ndarray = None
-        self._s: np.ndarray = None
-        self._Vstar: np.ndarray = None
-
-        # Amplitudes
-        self._b: np.ndarray = None
-
-    @property
-    def svd_rank(self) -> int:
-        """
-        Return the current SVD rank.
-
-        Returns
-        -------
-        int or float
-        """
-        return self._svd_rank
-
-    @property
-    def snapshots(self) -> np.ndarray:
-        """
-        Return the underlying snapshot data.
-
-        Returns
-        -------
-        numpy.ndarray (n_features, n_snapshots)
-        """
-        return self._snapshots
-
-    @property
-    def n_snapshots(self) -> int:
-        """
-        Return the number of snapshots.
-
-        Returns
-        -------
-        int
-        """
-        return self._snapshots.shape[1]
-
-    @property
-    def n_features(self) -> int:
-        """
-        Return the number of features in each snapshot.
-
-        Returns
-        -------
-        int
-        """
-        return self._snapshots.shape[0]
+        self._svd_rank = svd_rank
 
     @property
     def modes(self) -> np.ndarray:
@@ -104,28 +56,6 @@ class POD(ROMBase):
             return self._U[:, :self._rank]
 
     @property
-    def n_modes(self) -> int:
-        """
-        Return the number of modes.
-
-        Returns
-        -------
-        int
-        """
-        return self._rank
-
-    @property
-    def amplitudes(self) -> np.ndarray:
-        """
-        Return the mode amplitudes per snapshot.
-
-        Returns
-        -------
-        numpy.ndarray (n_snapshots, n_modes)
-        """
-        return self._b
-
-    @property
     def reconstructed_data(self) -> np.ndarray:
         """
         Return the reconstructed training data.
@@ -134,77 +64,18 @@ class POD(ROMBase):
         -------
         numpy.ndarray (n_features, n_snapshots)
         """
-        return self.modes @ self._b.T
+        return self.modes @ self._b
 
-    @property
-    def reconstruction_error(self) -> float:
-        """
-        Compute the training data reconstruction \f$ \ell_2 \f$ error.
-
-        Returns
-        -------
-        float
-        """
-        X = self.snapshots
-        X_pod = self.reconstructed_data
-        return norm(X - X_pod) / norm(X)
-
-    @property
-    def left_svd_modes(self) -> np.ndarray:
-        """
-        Return the left singular vectors.
-
-        Returns
-        -------
-        numpy.ndarray (n_features, n_snapshots)
-        """
-        return self._U
-
-    @property
-    def right_svd_modes(self) -> np.ndarray:
-        """
-        Return the right singular vectors.
-
-        Returns
-        -------
-        numpy.ndarray (n_snapshots, n_snapshots)
-        """
-        return np.conjugate(np.transpose(self._Vstar))
-
-    @property
-    def singular_values(self) -> np.ndarray:
-        """
-        Return the singular values.
-
-        Returns
-        -------
-        numpy.ndarray (n_snapshots,)
-        """
-        return self._s
-
-    @property
-    def snapshot_errors(self) -> np.ndarray:
-        """
-        Return the snapshot-wise reconstruction error.
-
-        Returns
-        -------
-        numpy.ndarray (n_snapshots,)
-        """
-        X = self.snapshots
-        X_dmd = self.reconstructed_data
-        return norm(X - X_dmd, axis=0) / norm(X, axis=0)
-
-    def fit(self, X: np.ndarray) -> 'POD':
+    def fit(self, X: Snapshots, Y: Optional[Parameters] = None) -> 'POD':
         """
         Fit the POD model to the specified data.
 
         Parameters
         ----------
-        X : numpy.ndarray
+        X : numpy.ndarray or Iterable
             The training snapshots.
-        Y : ndarray (n_snapshots, n_parameters), default None
-            The training parameters.
+        Y : numpy.ndarray or Iterable, default None
+            The training parameters
 
         Returns
         -------
@@ -221,11 +92,11 @@ class POD(ROMBase):
 
         # Compute amplitudes
         Sigma = np.diag(self._s[:self._rank])
-        self._b = np.transpose(Sigma @ self._Vstar[:self._rank])
+        self._b = Sigma @ self._Vstar[:self._rank]
 
         return self
 
-    def refit(self, svd_rank: Union[int, float]) -> 'POD':
+    def refit(self, svd_rank: SVDRank) -> 'POD':
         """
         Re-fit the POD model to the specified SVD rank.
 
@@ -246,8 +117,8 @@ class POD(ROMBase):
         self._rank = self._compute_rank()
 
         # Recompute amplitudes
-        s = np.diag(self._s[:self._rank])
-        self._b = np.transpose(s @ self._Vstar[:self._rank])
+        Sigma = np.diag(self._s[:self._rank])
+        self._b = Sigma @ self._Vstar[:self._rank]
 
         return self
 
@@ -272,38 +143,7 @@ class POD(ROMBase):
             msg = "The number of features must match the number " \
                   "of features in the training data."
             raise AssertionError(msg)
-        return X.T @ self.modes
-
-    def _compute_rank(self) -> int:
-        """
-        Return the POD rank given the singular values and SVD rank.
-
-        Returns
-        -------
-        int
-        """
-        # Optimal rank
-        if self._svd_rank == 0:
-            def omega(x):
-                return 0.56 * x ** 3 - 0.95 * x ** 2 + 1.82 * x + 1.43
-
-            beta = np.divide(*sorted(self.snapshots))
-            tau = np.median(self._s) * omega(beta)
-            return np.sum(self._s > tau)
-
-        # Energy truncation
-        elif 0 < self._svd_rank < 1:
-            s = self._s
-            cumulative_energy = np.cumsum(s ** 2 / np.sum(s ** 2))
-            return np.searchsorted(cumulative_energy, self._svd_rank) + 1
-
-        # Fixed rank
-        elif self._svd_rank >= 1 and isinstance(self._svd_rank, int):
-            return min(self._svd_rank, self._U.shape[1])
-
-        # Full rank
-        else:
-            return self.snapshots.shape[1]
+        return pinv(self.modes) @ X
 
     def print_summary(self) -> None:
         """
@@ -325,9 +165,9 @@ class POD(ROMBase):
 
     def plot_coefficients(
             self,
-            mode_indices: Union[int, list[int]] = None,
+            mode_indices: Optional[Indices] = None,
             one_plot: bool = True,
-            filename: str = None
+            filename: Optional[str] = None
     ) -> None:
         """
         Plot the POD coefficients as a function of parameter values.
