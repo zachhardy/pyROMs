@@ -291,7 +291,7 @@ class ROMBase:
         plt.tight_layout()
 
         if filename is not None:
-            base, ext = os.splitext(filename)
+            base, ext = os.path.splitext(filename)
             plt.savefig(f"{base}.pdf")
 
     def plot_modes_1d(
@@ -375,7 +375,7 @@ class ROMBase:
             plt.tight_layout()
 
             if filename is not None:
-                base, ext = os.splitext(filename)
+                base, ext = os.path.splitext(filename)
                 plt.savefig(f"{base}_{idx}.pdf")
 
     def plot_snapshots_1d(
@@ -459,7 +459,7 @@ class ROMBase:
             plt.tight_layout()
 
             if filename is not None:
-                base, ext = os.splitext(filename)
+                base, ext = os.path.splitext(filename)
                 plt.savefig(f"{base}_{idx}.pdf")
 
     def plot_modes_2d(
@@ -559,7 +559,7 @@ class ROMBase:
                 plt.tight_layout()
 
                 if filename is not None:
-                    base, ext = os.splitext(filename)
+                    base, ext = os.path.splitext(filename)
                     plt.savefig(f"{base}_{idx}_{c}.pdf")
 
     def plot_snapshots_2d(
@@ -658,5 +658,5 @@ class ROMBase:
                 plt.tight_layout()
 
                 if filename is not None:
-                    base, ext = os.splitext(filename)
+                    base, ext = os.path.splitext(filename)
                     plt.savefig(f"{base}_{idx}_{c}.pdf")

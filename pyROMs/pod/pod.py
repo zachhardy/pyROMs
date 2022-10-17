@@ -15,9 +15,7 @@ from ..rom_base import ROMBase
 
 
 SVDRank = Union[int, float]
-Shape = tuple[int, ...]
 Indices = Components = Union[int, Iterable[int]]
-
 Snapshots = Parameters = Union[np.ndarray, Iterable]
 
 
@@ -153,7 +151,6 @@ class POD(ROMBase):
         print("=======================")
         print("===== POD Summary =====")
         print("=======================")
-
         print(f"{'# of Modes':<20}: {self.n_modes}")
         print(f"{'# of Snapshots':<20}: {self.n_snapshots}")
         print(f"{'Reconstruction Error':<20}: "
@@ -212,7 +209,7 @@ class POD(ROMBase):
                 plt.tight_layout()
 
                 if filename is not None:
-                    base, ext = os.splitext(filename)
+                    base, ext = os.path.splitext(filename)
                     plt.savefig(f"{base}.pdf")
 
             # Plot separately
@@ -227,6 +224,6 @@ class POD(ROMBase):
                     plt.tight_layout()
 
                     if filename is not None:
-                        base, ext = os.splitext(filename)
+                        base, ext = os.path.splitext(filename)
                         plt.savefig(f"{base}_{idx}.pdf")
         plt.show()
