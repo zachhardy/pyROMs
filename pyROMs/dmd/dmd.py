@@ -27,7 +27,7 @@ class DMD(ROMBase):
 
     def __init__(
             self,
-            svd_rank: Union[int, float] = 0,
+            svd_rank: SVDRank = 0,
             exact: bool = False,
             opt: bool = False,
             sorted_eigs: Optional[str] = None
@@ -200,7 +200,7 @@ class DMD(ROMBase):
         """
         return np.arange(
             self.dmd_time["t0"],
-            self.dmd_time["tend"] + self.dmd_time["tend"],
+            self.dmd_time["tend"] + self.dmd_time["dt"],
             self.dmd_time["dt"]
         )
 
@@ -273,14 +273,16 @@ class DMD(ROMBase):
         self._rank = self._compute_rank()
 
         # Compute and decompose the low-rank evolution operator
-        self._Atilde = self._compute_atilde(U, s, Vstar, Y)
+        self._Atilde = self._compute_atilde()
         self._decompose_atilde()
 
         # Compute the high-dimensional modes
-        self._compute_modes(U, s, Vstar, Y)
+        self._compute_modes()
 
         # Compute the amplitudes
         self._b = self._compute_amplitudes()
+
+        return self
 
     def refit(
             self,
@@ -378,10 +380,10 @@ class DMD(ROMBase):
         numpy.ndarray (n_modes, n_modes)
         """
         Y = self._snapshots[:, 1:]
-        U = self._U[:, :self._rank]
-        Vstar = self._Vstar[:self._rank]
+        Ustar = self._U[:, :self._rank].conj().T
+        V = self._Vstar[:self._rank].conj().T
         s_inv = np.reciprocal(self._s[:self._rank])
-        return multi_dot([U.H, Y, Vstar.H]) @ s_inv
+        return multi_dot([Ustar, Y, V]) * s_inv
 
     def _decompose_atilde(self) -> None:
         """
@@ -422,12 +424,12 @@ class DMD(ROMBase):
 
         if self._exact:
             Y = self._snapshots[:, 1:]
-            Vstar = self._Vstar[:self._rank]
+            V = self._Vstar[:self._rank].conj().T
             s_inv = np.reciprocal(self._s[:self._rank])
-            self._modes = Y.dot(Vstar.H) * s_inv.dot(self._eigvecs)
+            self._modes = Y.dot(V) * s_inv.dot(self._eigvecs)
 
         else:
-            U = self._U[:, self._rank]
+            U = self._U[:, :self._rank]
             self._modes = U.dot(self._eigvecs)
 
     def _compute_amplitudes(self) -> np.ndarray:
@@ -449,11 +451,11 @@ class DMD(ROMBase):
 
             # form system to solve
             P = np.multiply(
-                np.dot(self._modes.H, self._modes),
-                np.conj(vander.dot(vander.H))
+                np.dot(self._modes.conj().T, self._modes),
+                np.conj(vander.dot(vander.conj(),T))
             )
 
-            q = multi_dot([U, np.diag(s), Vstar]).H
+            q = multi_dot([U, np.diag(s), Vstar]).conj().T
             q = np.conj(np.diag([vander, q, self._modes]))
 
             # solve system
@@ -526,6 +528,8 @@ class DMD(ROMBase):
             plotter = plt.semilogy if logscale else plt.plot
             plotter(self.dmd_timesteps, dynamic.real, label=f"Mode {idx}")
 
+        plt.legend()
+        plt.grid(True)
         plt.tight_layout()
         if filename is not None:
             base, ext = os.path.splitext(filename)

@@ -7,6 +7,8 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 
+from numpy.linalg import norm
+
 from typing import Union, Optional
 from collections.abc import Iterable
 
@@ -194,15 +196,19 @@ class ROMBase:
             def omega(x):
                 return 0.56 * x ** 3 - 0.95 * x ** 2 + 1.82 * x + 1.43
 
-            beta = np.divide(*sorted(self.snapshots))
+            beta = np.divide(*sorted(self.snapshots.shape))
             tau = np.median(self._s) * omega(beta)
             return np.sum(self._s > tau)
 
         # Energy truncation
-        elif 0 < self._svd_rank < 1:
+        elif 0.5 < self._svd_rank < 1:
             s = self._s
             cumulative_energy = np.cumsum(s ** 2 / np.sum(s ** 2))
             return np.searchsorted(cumulative_energy, self._svd_rank) + 1
+
+        elif 0.0 < self._svd_rank <= 0.5:
+            s_rel = self._s / max(self._s)
+            return len(s_rel[s_rel > self._svd_rank])
 
         # Fixed rank
         elif self._svd_rank >= 1 and isinstance(self._svd_rank, int):
