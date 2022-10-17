@@ -1,10 +1,11 @@
+import os
 import warnings
+
 import numpy as np
 import matplotlib.pyplot as plt
 
 from numpy.linalg import norm
 from numpy.linalg import svd
-from os.path import splitext
 
 from typing import Union
 
@@ -40,7 +41,7 @@ class POD(ROMBase):
         # SVD information
         self._rank: int = 0
         self._U: np.ndarray = None
-        self._Sigma: np.ndarray = None
+        self._s: np.ndarray = None
         self._Vstar: np.ndarray = None
 
         # Amplitudes
@@ -179,7 +180,7 @@ class POD(ROMBase):
         -------
         numpy.ndarray (n_snapshots,)
         """
-        return self._Sigma
+        return self._s
 
     @property
     def snapshot_errors(self) -> np.ndarray:
@@ -215,12 +216,12 @@ class POD(ROMBase):
         self._snapshots_shape = Xshape
 
         # Perform the SVD
-        self._U, self._Sigma, self._Vstar = svd(X, full_matrices=False)
+        self._U, self._s, self._Vstar = svd(X, full_matrices=False)
         self._rank = self._compute_rank()
 
         # Compute amplitudes
-        s = np.diag(self._Sigma[:self._rank])
-        self._b = np.transpose(s @ self._Vstar[:self._rank])
+        Sigma = np.diag(self._s[:self._rank])
+        self._b = np.transpose(Sigma @ self._Vstar[:self._rank])
 
         return self
 
@@ -245,7 +246,7 @@ class POD(ROMBase):
         self._rank = self._compute_rank()
 
         # Recompute amplitudes
-        s = np.diag(self._Sigma[:self._rank])
+        s = np.diag(self._s[:self._rank])
         self._b = np.transpose(s @ self._Vstar[:self._rank])
 
         return self
@@ -287,12 +288,12 @@ class POD(ROMBase):
                 return 0.56 * x ** 3 - 0.95 * x ** 2 + 1.82 * x + 1.43
 
             beta = np.divide(*sorted(self.snapshots))
-            tau = np.median(self._Sigma) * omega(beta)
-            return np.sum(self._Sigma > tau)
+            tau = np.median(self._s) * omega(beta)
+            return np.sum(self._s > tau)
 
         # Energy truncation
         elif 0 < self._svd_rank < 1:
-            s = self._Sigma
+            s = self._s
             cumulative_energy = np.cumsum(s ** 2 / np.sum(s ** 2))
             return np.searchsorted(cumulative_energy, self._svd_rank) + 1
 
@@ -371,7 +372,7 @@ class POD(ROMBase):
                 plt.tight_layout()
 
                 if filename is not None:
-                    base, ext = splitext(filename)
+                    base, ext = os.splitext(filename)
                     plt.savefig(f"{base}.pdf")
 
             # Plot separately
@@ -386,6 +387,6 @@ class POD(ROMBase):
                     plt.tight_layout()
 
                     if filename is not None:
-                        base, ext = splitext(filename)
+                        base, ext = os.splitext(filename)
                         plt.savefig(f"{base}_{idx}.pdf")
         plt.show()
