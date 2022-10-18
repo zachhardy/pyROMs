@@ -162,6 +162,7 @@ class ROMBase:
         """
         return self._U
 
+    @property
     def right_singular_vectors(self) -> np.ndarray:
         """
         Return the right singular vectors.
@@ -170,7 +171,7 @@ class ROMBase:
         -------
         numpy.ndarray (n_snapshots, n_snapshots)
         """
-        return self._Vstar.H
+        return self._Vstar.conj().T
 
     @property
     def singular_values(self) -> np.ndarray:
