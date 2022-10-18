@@ -61,8 +61,6 @@ class DMD(ROMBase):
         self._Atilde: np.ndarray = None
 
         self._eigvals: np.ndarray = None
-        self._omegas: np.ndarray = None
-
         self._eigvecs: np.ndarray = None
         self._modes: np.ndarray = None
 
@@ -105,7 +103,7 @@ class DMD(ROMBase):
     @property
     def modes(self) -> np.ndarray:
         """
-        Return the DMD modes stored row-wise.
+        Return the DMD modes stored column-wise.
 
         Returns
         -------
@@ -127,7 +125,7 @@ class DMD(ROMBase):
     @property
     def eigvals(self) -> np.ndarray:
         """
-        Return the eigenvalues of the DMD modes.
+        Return the eigenvalues of Atilde
 
         Returns
         -------
@@ -144,18 +142,16 @@ class DMD(ROMBase):
         -------
         numpy.ndarray (n_modes,)
         """
-        if self._omegas is None:
-            w = np.log(self._eigvals)/self.original_time["dt"]
-            for i in range(len(w)):
-                if w[i].imag % np.pi < 1.0e-12:
-                    w[i] = w[i].real + 0.0j
-            self._omegas = w
-        return self._omegas
+        w = np.log(self._eigvals) / self.original_time["dt"]
+        for i in range(len(w)):
+            if w[i].imag % np.pi < 1.0e-12:
+                w[i] = w[i].real + 0.0j
+        return w
 
     @property
     def frequency(self) -> np.ndarray:
         """
-        Return the frequency of the DMD modes.
+        Return the frequencies of the DMD mode eigenvalues.
 
         Returns
         -------
@@ -173,6 +169,33 @@ class DMD(ROMBase):
         numpy.ndarray (n_modes, n_modes)
         """
         return np.transpose(self._eigvecs)
+
+    @property
+    def dynamics(self) -> np.ndarray:
+        """
+        Return the time evolution of each mode.
+
+        Returns
+        -------
+        numpy.ndarray (n_modes, *)
+        """
+        # form the base dynamics matrix (n_modes, *)
+        base = np.repeat(self._eigvals[:, None],
+                         self.dmd_timesteps.shape[0],
+                         axis=1)
+
+        # each column is the eigenvalue raised to a power
+        # - when dmd_timesteps = original_timesteps, this reduces to
+        # - integer powers, however, when they are different, map the
+        # - dmd time steps back to original time start and divide by
+        # - the original time step. For example, when time step is
+        # - halved this results to powers in increments of 0.5.
+        powers = np.divide(self.dmd_timesteps - self.original_time["t0"],
+                           self.original_time["dt"])
+
+        # raise the base matrix to the specified powers and scale by
+        # the associated amplitudes
+        return np.power(base, powers) * self._b[:, None]
 
     @property
     def original_timesteps(self) -> np.ndarray:
@@ -203,33 +226,6 @@ class DMD(ROMBase):
             self.dmd_time["tend"] + self.dmd_time["dt"],
             self.dmd_time["dt"]
         )
-
-    @property
-    def dynamics(self) -> np.ndarray:
-        """
-        Return the time evolution of each mode.
-
-        Returns
-        -------
-        numpy.ndarray (n_modes, *)
-        """
-        # form the base dynamics matrix (n_modes, *)
-        base = np.repeat(self._eigvals[:, None],
-                         self.dmd_timesteps.shape[0],
-                         axis=1)
-
-        # each column is the eigenvalue raised to a power
-        # - when dmd_timesteps = original_timesteps, this reduces to
-        # - integer powers, however, when they are different, map the
-        # - dmd time steps back to original time start and divide by
-        # - the original time step. For example, when time step is
-        # - halved this results to powers in increments of 0.5.
-        powers = np.divide(self.dmd_timesteps - self.original_time["t0"],
-                           self.original_time["dt"])
-
-        # raise the base matrix to the specified powers and scale by
-        # the associated amplitudes
-        return np.power(base, powers) * self._b[:, None]
 
     @property
     def reconstructed_data(self) -> np.ndarray:
@@ -325,6 +321,23 @@ class DMD(ROMBase):
         self._b = self._compute_amplitudes()
 
         return self
+
+    def set_original_time(self, value: dict) -> None:
+        """
+        Set the original time dictionary for the training snapshots.
+
+        This routine resets the DMD time dictionary to the specified value.
+
+        Parameters
+        ----------
+        value : dict
+        """
+        keys = set(value.keys())
+        if keys != set({"t0", "tend", "dt"}):
+            raise KeyError("Invalid time dictionary provided.")
+
+        self.original_time = value.copy()
+        self.dmd_time = value.copy()
 
     def find_optimal_hyperparameters(self) -> None:
         """
@@ -514,19 +527,18 @@ class DMD(ROMBase):
         # Plot the dynamics
         ##################################################
 
+        plt.figure()
+        plt.title("DMD Dynamics")
+        plt.xlabel("Time")
         for idx in mode_indices:
             dynamic = self.dynamics[idx]
             if normalized:
                 dynamic /= self._b[idx]
 
-            plt.figure()
             omega = self.omegas[idx]
-            plt.suptitle(f"DMD Dynamics {idx}\n"
-                         f"$\omega$ = {omega.real:.3e}{omega.imag:+.3g}")
-            plt.xlabel("Time")
-
             plotter = plt.semilogy if logscale else plt.plot
-            plotter(self.dmd_timesteps, dynamic.real, label=f"Mode {idx}")
+            label = f"Mode {idx}, $\omega$={omega.real:.3e}{omega.imag:+.3e}j"
+            plotter(self.dmd_timesteps, dynamic.real, label=label)
 
         plt.legend()
         plt.grid(True)
