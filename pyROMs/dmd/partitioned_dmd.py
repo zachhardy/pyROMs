@@ -48,7 +48,7 @@ class PartitionedDMD:
         self._snapshots_shape: Shape = None
 
         self._dmd: SubModel = dmd
-        self._dmd_list: list[DMD] = []
+        self._partitions: list[DMD] = []
 
         # Define partition boundaries
         pb = partition_points + [-1]
@@ -65,7 +65,7 @@ class PartitionedDMD:
         -------
         Iterator[DMD]
         """
-        return self._dmd_list.__iter__()
+        return self._partitions.__iter__()
 
     def __next__(self) -> Iterator[DMD]:
         """
@@ -75,7 +75,7 @@ class PartitionedDMD:
         -------
         Iterator[DMD]
         """
-        return next(self._dmd_list)
+        return next(self._partitions)
 
     def __getitem__(self, index: int) -> DMD:
         """
@@ -90,7 +90,7 @@ class PartitionedDMD:
         -------
         DMD
         """
-        return self._dmd_list[index]
+        return self._partitions[index]
 
     @property
     def partition_start_indices(self) -> list[int]:
@@ -191,7 +191,7 @@ class PartitionedDMD:
         numpy.ndarray (n_features, n_total_snapshots)
         """
         X = self[0].reconstructed_data
-        for dmd in self[1:]:
+        for dmd in self._partitions[1:]:
             X = np.hstack([X, dmd.reconstructed_data[:, 1:]])
         return X
 
@@ -231,49 +231,7 @@ class PartitionedDMD:
         -------
         numpy.ndarray (n_features, n_modes[index])
         """
-        return self[index].modes
-
-    def partial_dynamics(self, index: int) -> np.ndarray:
-        """
-        Return the dynamics for the specified partition.
-
-        Parameters
-        ----------
-        index : int
-
-        Returns
-        -------
-        numpy.ndarray (n_modes[index], *)
-        """
-        return self[index].dynamics
-
-    def partial_reconstructed_data(self, index: int) -> np.ndarray:
-        """
-        Return the reconstructed data for the specified partition.
-
-        Parameters
-        ----------
-        index : int
-
-        Returns
-        -------
-        numpy.ndarray (n_featrues, n_snapshots[index])
-        """
-        return self[index].reconstructed_data
-
-    def partial_reconstruction_error(self, index: int) -> float:
-        """
-        Return the reconstruction error for the specified partition.
-
-        Parameters
-        ----------
-        index : int
-
-        Returns
-        -------
-        float
-        """
-        return self[index].reconstruction_error
+        return self._partitions[index].modes
 
     def _build_partitions(self) -> None:
         """
@@ -298,10 +256,9 @@ class PartitionedDMD:
         else:
             raise AssertionError("Invalid sub-model input.")
 
-        self._dmd_list.clear()
+        self._partitions.clear()
         for p in range(self.n_partitions):
-            self._dmd_list.append(builder(p))
-
+            self._partitions.append(builder(p))
 
     def fit(self, X: Snapshots) -> 'PartitionedDMD':
         """
@@ -336,7 +293,7 @@ class PartitionedDMD:
 
             # Fit the sub-models
             Xp = self._snapshots[:, start:end + 1]
-            self[p].fit(Xp)
+            self._partitions[p].fit(Xp)
 
             # Shift the start and end points
             start = end
