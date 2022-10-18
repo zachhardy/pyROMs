@@ -93,50 +93,6 @@ class PartitionedDMD:
         return self._dmd_list[index]
 
     @property
-    def svd_rank(self) -> list[SVDRank]:
-        """
-        Return the SVD rank per partition.
-
-        Returns
-        -------
-        list[int or float]
-        """
-        return [dmd.svd_rank for dmd in self]
-
-    @property
-    def exact(self) -> list[bool]:
-        """
-        Return the exact modes flag per partition.
-
-        Returns
-        -------
-        list[bool]
-        """
-        return [dmd.exact for dmd in self]
-
-    @property
-    def opt(self) -> list[bool]:
-        """
-        Return the optimized amplitudes flag per partition.
-
-        Returns
-        -------
-        list[bool]
-        """
-        return [dmd.opt for dmd in self]
-
-    @property
-    def sorted_eigs(self) -> list[str]:
-        """
-        Return the sorting method per partition.
-
-        Returns
-        -------
-        list[str]
-        """
-        return [dmd.sorted_eigs for dmd in self]
-
-    @property
     def partition_start_indices(self) -> list[int]:
         """
         Return the indices each partition starts at.
@@ -171,18 +127,7 @@ class PartitionedDMD:
         return self._snapshots
 
     @property
-    def n_snapshots(self) -> list[int]:
-        """
-        Return the number of snapshots per partition.
-
-        Returns
-        -------
-        list[int]
-        """
-        return [dmd.n_snapshots for dmd in self]
-
-    @property
-    def n_total_snapshots(self) -> int:
+    def n_snapshots(self) -> int:
         """
         Return the total number of snapshots.
 
@@ -215,18 +160,7 @@ class PartitionedDMD:
         return [dmd.modes for dmd in self]
 
     @property
-    def n_modes(self) -> list[int]:
-        """
-        Return the number of modes per partition.
-
-        Returns
-        -------
-        list[int]
-        """
-        return [dmd.n_modes for dmd in self]
-
-    @property
-    def n_total_modes(self) -> int:
+    def n_modes(self) -> int:
         """
         Return the total number of modes.
 
@@ -234,18 +168,7 @@ class PartitionedDMD:
         -------
         int
         """
-        return sum(self.n_modes)
-
-    @property
-    def amplitudes(self) -> list[np.ndarray]:
-        """
-        Return the amplitudes per partition.
-
-        Returns
-        -------
-        list[numpy.ndarray]
-        """
-        return [dmd.amplitudes for dmd in self]
+        return sum(dmd.n_modes for dmd in self)
 
     @property
     def dynamics(self) -> list[np.ndarray]:
@@ -263,21 +186,13 @@ class PartitionedDMD:
         """
         Return the reconstructed data.
 
-        To accommodate for non-uniform time steps across partitions,
-        each subsequent partition begins where the previous ends.
-        Because DMD amplitudes are often computed via a fit to the
-        first snapshot, for a snapshot which corresponds to a partition
-        point, the representation from the partition in which that
-        snapshot is the first snapshot is used and the other discarded.
-
         Returns
         -------
         numpy.ndarray (n_features, n_total_snapshots)
         """
         X = self[0].reconstructed_data
-        for p in range(1, self.n_partitions):
-            Xp = self[p].reconstructed_data
-            X = np.hstack((X, Xp))
+        for dmd in self[1:]:
+            X = np.hstack([X, dmd.reconstructed_data[:, 1:]])
         return X
 
     @property
@@ -303,94 +218,6 @@ class PartitionedDMD:
         """
         X, X_rom = self._snapshots, self.reconstructed_data
         return norm(X - X_rom, axis=0) / norm(X, axis=0)
-
-    @property
-    def Atilde(self) -> list[np.ndarray]:
-        """
-        Return the low-rank evolution operator per partition.
-
-        Returns
-        -------
-        list[numpy.ndarray]
-        """
-        return [dmd.Atilde for dmd in self]
-
-    @property
-    def eigvals(self) -> list[np.ndarray]:
-        """
-        Return the eigenvalues of Atilde per partition.
-
-        Returns
-        -------
-        list[numpy.ndarray]
-        """
-        return [dmd.eigvals for dmd in self]
-
-    @property
-    def omegas(self) -> list[np.ndarray]:
-        """
-        Return the continuous eigenvalues of the DMD modes per partition.
-
-        Returns
-        -------
-        list[numpy.ndarray]
-        """
-        return [dmd.omegas for dmd in self]
-
-    @property
-    def frequency(self) -> list[np.ndarray]:
-        """
-        Return the frequencies of the DMD mode eigenvalues per partition.
-
-        Returns
-        -------
-        list[numpy.ndarray]
-        """
-        return [dmd.frequency for dmd in self]
-
-    @property
-    def eigvecs(self) -> list[np.ndarray]:
-        """
-        Return the eigenvectors of Atilde stored column-wise per partition.
-
-        Returns
-        -------
-        list[numpy.ndarray]
-        """
-        return [dmd.eigvecs for dmd in self]
-
-    @property
-    def left_singular_vectors(self) -> list[np.ndarray]:
-        """
-        Return the left singular vectors per partition.
-
-        Returns
-        -------
-        list[numpy.ndarray]
-        """
-        return [dmd.left_singular_vectors for dmd in self]
-
-    @property
-    def right_singular_vectors(self) -> list[np.ndarray]:
-        """
-        Return the right singular vectors per partition.
-
-        Returns
-        -------
-        list[numpy.ndarray]
-        """
-        return [dmd.right_singular_vectors for dmd in self]
-
-    @property
-    def singular_values(self) -> list[np.ndarray]:
-        """
-        Return the singular values per partition.
-
-        Returns
-        -------
-        list[numpy.ndarray]
-        """
-        return [dmd.singular_values for dmd in self]
 
     def partial_modes(self, index: int) -> np.ndarray:
         """
@@ -448,59 +275,6 @@ class PartitionedDMD:
         """
         return self[index].reconstruction_error
 
-    def partial_time_interval(self, index: int) -> dict:
-        """
-        Return the time dictionary for the specified partition.
-
-        Parameters
-        ----------
-        index : int
-
-        Returns
-        -------
-        dict
-        """
-        return self[index].original_time
-
-    def fit(self, X: Snapshots) -> 'PartitionedDMD':
-        """
-        Fit the partitioned DMD model to the input data.
-
-        Parameters
-        ----------
-        X : numpy.ndarray or Iterable
-            The input snapshots.
-
-        Returns
-        -------
-        PartitionedDMD
-        """
-        X, Xshape = format_2darray(X)
-
-        self._snapshots = X
-        self._snapshots_shape = Xshape
-
-        # Check partitions and options
-        for i in range(self.n_partitions):
-            if self._bndrys[i] == -1:
-                self._bndrys[i] = self.n_total_snapshots - 1
-            if (self._bndrys[i] < 0 or
-                    self._bndrys[i] >= self.n_total_snapshots):
-                raise ValueError(f"{pt} is an invalid partition index.")
-
-        # Loop over each partition and fit the sub-models
-        start = 0
-        for p in range(self.n_partitions):
-            end = self._bndrys[p]
-
-            # Fit the sub-models
-            Xp = self._snapshots[:, start:end + 1]
-            self[p].fit(Xp)
-            # self[p].optimize_hyperparameters(True)
-
-            # Shift the start and end points
-            start = end + 1
-
     def _build_partitions(self) -> None:
         """
         Build the sub-models on each partition.
@@ -528,6 +302,45 @@ class PartitionedDMD:
         for p in range(self.n_partitions):
             self._dmd_list.append(builder(p))
 
+
+    def fit(self, X: Snapshots) -> 'PartitionedDMD':
+        """
+        Fit the partitioned DMD model to the input data.
+
+        Parameters
+        ----------
+        X : numpy.ndarray or Iterable
+            The input snapshots.
+
+        Returns
+        -------
+        PartitionedDMD
+        """
+        X, Xshape = format_2darray(X)
+
+        self._snapshots = X
+        self._snapshots_shape = Xshape
+
+        # Check partitions and options
+        for i in range(self.n_partitions):
+            if self._bndrys[i] == -1:
+                self._bndrys[i] = self.n_snapshots - 1
+            if (self._bndrys[i] < 0 or
+                    self._bndrys[i] >= self.n_snapshots):
+                raise ValueError(f"{pt} is an invalid partition index.")
+
+        # Loop over each partition and fit the sub-models
+        start = 0
+        for p in range(self.n_partitions):
+            end = self._bndrys[p]
+
+            # Fit the sub-models
+            Xp = self._snapshots[:, start:end + 1]
+            self[p].fit(Xp)
+
+            # Shift the start and end points
+            start = end
+
     def print_summary(self, skip_line: bool = False) -> None:
         """
         Print a summary of the DMD model.
@@ -536,8 +349,8 @@ class PartitionedDMD:
         print("===================================")
         print("===== Partitioned DMD Summary =====")
         print("===================================")
-        print(f"{'# of Modes':<20}: {sum(self.n_modes)}")
-        print(f"{'# of Snapshots':<20}: {sum(self.n_snapshots)}")
+        print(f"{'# of Modes':<20}: {self.n_modes}")
+        print(f"{'# of Snapshots':<20}: {self.n_snapshots}")
         print(f"{'Reconstruction Error':<20}: "
               f"{self.reconstruction_error:.3e}")
         print(f"{'Mean Snapshot Error':<20}: "
