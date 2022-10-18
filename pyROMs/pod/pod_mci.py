@@ -9,6 +9,7 @@ from typing import Union
 from collections.abc import Iterable
 
 from .pod import POD
+from ..utils import format_2darray
 
 SVDRank = Union[int, float]
 Snapshots = Parameters = Union[np.ndarray, Iterable]
@@ -21,19 +22,20 @@ class POD_MCI(POD):
 
     def __init__(
             self,
-            svd_rank: SVDRank = -1,
+            svd_rank: SVDRank = 0,
             interpolant: str = "rbf",
             **kwargs
     ) -> None:
         """
         Parameters
         ----------
-        svd_rank : int or float, default -1
-            The SVD rank to use for truncation. If a positive integer,
-            the minimum of this number and the maximum possible rank
-            is used. If a float between 0 and 1, the minimum rank to
-            achieve the specified energy content is used. If -1, no
-            truncation is performed.
+        svd_rank : int or float, default 0
+            The rank for mode truncation. If 0, use the optimal rank.
+            If a float in (0.0, 0.5], use the rank corresponding to the
+            number of singular values whose relative values are greater
+            than the argument. If a float in (0.5, 1.0), use the minimum
+            number of modes such that the energy content is greater than
+            the argument. If a positive integer, use that rank.
         interpolant : {'linear', 'cubic', 'nearest', 'rbf', 'rbf_<kernel>'}
             The interpolation method to use. Default uses a radial basis
             function interpolant with a thin plate spline kernel function.
@@ -117,7 +119,7 @@ class POD_MCI(POD):
         # Format and check inputs
         ##################################################
 
-        X, Xshape = self._format_2darray(X)
+        X, Xshape = format_2darray(X)
         if Y.shape[0] != X.shape[1]:
             msg = "The number of parameter sets does not match " \
                   "the number of training snapshots."
@@ -146,12 +148,13 @@ class POD_MCI(POD):
 
         Parameters
         ----------
-        svd_rank : int or float, default -1
-            The SVD rank to use for truncation. If a positive integer,
-            the minimum of this number and the maximum possible rank
-            is used. If a float between 0 and 1, the minimum rank to
-            achieve the specified energy content is used. If -1, no
-            truncation is performed.
+        svd_rank : int or float, default 0
+            The rank for mode truncation. If 0, use the optimal rank.
+            If a float in (0.0, 0.5], use the rank corresponding to the
+            number of singular values whose relative values are greater
+            than the argument. If a float in (0.5, 1.0), use the minimum
+            number of modes such that the energy content is greater than
+            the argument. If a positive integer, use that rank.
         interpolant : {'linear', 'cubic', 'nearest', 'rbf', 'rbf_<kernel>'}
             The interpolation method to use. Default uses a radial basis
             function interpolant with a thin plate spline kernel function.

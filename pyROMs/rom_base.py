@@ -184,7 +184,7 @@ class ROMBase:
         """
         return self._s
 
-    def _compute_rank(self) -> int:
+    def _compute_rank(self, svd_rank: SVDRank) -> int:
         """
         Return the POD rank given the singular values and SVD rank.
 
@@ -193,7 +193,7 @@ class ROMBase:
         int
         """
         # Optimal rank
-        if self._svd_rank == 0:
+        if svd_rank == 0:
             def omega(x):
                 return 0.56 * x ** 3 - 0.95 * x ** 2 + 1.82 * x + 1.43
 
@@ -202,58 +202,21 @@ class ROMBase:
             return np.sum(self._s > tau)
 
         # Energy truncation
-        elif 0.5 < self._svd_rank < 1:
+        elif 0.5 < svd_rank < 1:
             s = self._s
             cumulative_energy = np.cumsum(s ** 2 / np.sum(s ** 2))
-            return np.searchsorted(cumulative_energy, self._svd_rank) + 1
+            return np.searchsorted(cumulative_energy, svd_rank) + 1
 
-        elif 0.0 < self._svd_rank <= 0.5:
-            s_rel = self._s / max(self._s)
-            return len(s_rel[s_rel > self._svd_rank])
+        elif 0.0 < svd_rank <= 0.5:
+            return len(self._s[self._s / max(self._s) > svd_rank])
 
         # Fixed rank
-        elif self._svd_rank >= 1 and isinstance(self._svd_rank, int):
-            return min(self._svd_rank, self._U.shape[1])
+        elif svd_rank >= 1 and isinstance(svd_rank, int):
+            return min(svd_rank, self._U.shape[1])
 
         # Full rank
         else:
-            return self.snapshots.shape[1]
-
-    @staticmethod
-    def _format_2darray(X: Snapshots) -> tuple[np.ndarray, tuple[int, ...]]:
-        """
-        Private method which formats the training snapshots appropriately
-        for an SVD. If the data is already 2D, the original data is returned.
-        Otherwise, the data is reshaped into a 2D numpy ndarray with
-        column-wise snapshots. When this is done, the reformatted data and
-        original snapshot shape is returned.
-
-        Parameters
-        ----------
-        X : numpy.ndarray or Iterable
-            The training data.
-
-        Returns
-        -------
-        numpy.ndarray (n_features, n_snapshots)
-            The formatted 2D training data
-        tuple[int, int]
-            The original input shape.
-
-        """
-        if isinstance(X, np.ndarray) and X.ndim == 2:
-            snapshots = X
-            snapshots_shape = None
-        else:
-
-            input_shapes = [np.asarray(x).shape for x in X]
-
-            if len(set(input_shapes)) != 1:
-                raise ValueError("Snapshots have not the same dimension.")
-
-            snapshots_shape = input_shapes[0]
-            snapshots = np.transpose([np.asarray(x).flatten() for x in X])
-        return snapshots, snapshots_shape
+            return self._U.shape[1]
 
     def plot_singular_values(
             self,

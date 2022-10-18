@@ -2,15 +2,20 @@ import itertools
 import numpy as np
 
 from numpy.linalg import norm
-from copy import deepcopy
+from scipy.linalg import block_diag
 
-from typing import Union, Optional
+from copy import deepcopy
+from typing import Union, Callable, Optional
 from collections.abc import Iterable, Iterator
 
 from .dmd import DMD
+from ..utils import format_2darray
 
 SVDRank = Union[int, float]
 Shape = tuple[int, ...]
+
+SubModel = Union[DMD, Iterable[DMD], Callable[..., DMD]]
+Snapshots = Union[np.ndarray, Iterable]
 
 
 class PartitionedDMD:
@@ -23,14 +28,13 @@ class PartitionedDMD:
 
     def __init__(
             self,
-            dmd: DMD,
+            dmd: SubModel,
             partition_points: Iterable[int],
-            options: Optional[Iterable[dict]] = None
     ) -> None:
         """
         Parameters
         ----------
-        dmd : DMD
+        dmd : DMD, Iterable[DMD], or Callable[[int, ...], DMD]
             An instance of a DMD object to be used to initialize
             each partition.
         partition_points : Iterable[int]
@@ -38,21 +42,20 @@ class PartitionedDMD:
             partitioned. The specified indices denote the starting
             snapshot for each partition after that starting on the
             first snapshot.
-        options : list[dict], default None
-            A list of hyper-parameters for each sub-model. If None,
-            those from the specified DMD instance are used.
         """
 
         self._snapshots: np.ndarray = None
         self._snapshots_shape: Shape = None
 
-        self._dmd: DMD = dmd
+        self._dmd: SubModel = dmd
         self._dmd_list: list[DMD] = []
-        self._dmd_options: list[dict] = options
 
         # Define partition boundaries
-        pb = [0] + partition_points + [-1]
-        self._partition_bndrys: list[int] = pb
+        pb = partition_points + [-1]
+        self._bndrys: list[int] = pb
+
+        # Build the partitions
+        self._build_partitions()
 
     def __iter__(self) -> Iterator[DMD]:
         """
@@ -66,7 +69,7 @@ class PartitionedDMD:
 
     def __next__(self) -> Iterator[DMD]:
         """
-        Return the an iterator to the next sub-model.
+        Return an iterator to the next sub-model.
 
         Returns
         -------
@@ -74,20 +77,20 @@ class PartitionedDMD:
         """
         return next(self._dmd_list)
 
-    def __getitem__(self, partition: int) -> DMD:
+    def __getitem__(self, index: int) -> DMD:
         """
         Return the sub-model for the specified partition.
 
         Parameters
         ----------
-        partition : int
+        index : int
             The partition index.
 
         Returns
         -------
         DMD
         """
-        return self._dmd_list[partition]
+        return self._dmd_list[index]
 
     @property
     def svd_rank(self) -> list[SVDRank]:
@@ -142,8 +145,8 @@ class PartitionedDMD:
         -------
         list[int]
         """
-        pb = self._partition_bndrys
-        return [pb[i] for i in range(len(pb) - 1)]
+        pb = self._bndrys
+        return [pb[i] for i in range(self.n_partitions)]
 
     @property
     def n_partitions(self) -> int:
@@ -154,7 +157,7 @@ class PartitionedDMD:
         -------
         int
         """
-        return len(self._dmd_list)
+        return len(self._bndrys)
 
     @property
     def snapshots(self) -> np.ndarray:
@@ -187,7 +190,7 @@ class PartitionedDMD:
         -------
         int
         """
-        return sum(self.n_snapshots)
+        return self._snapshots.shape[1]
 
     @property
     def n_features(self) -> int:
@@ -260,7 +263,7 @@ class PartitionedDMD:
         """
         Return the reconstructed data.
 
-        To accomodate for non-uniform time steps across partitions,
+        To accommodate for non-uniform time steps across partitions,
         each subsequent partition begins where the previous ends.
         Because DMD amplitudes are often computed via a fit to the
         first snapshot, for a snapshot which corresponds to a partition
@@ -271,10 +274,9 @@ class PartitionedDMD:
         -------
         numpy.ndarray (n_features, n_total_snapshots)
         """
-        X = self[0].reconstructed_data[:, :-1]
+        X = self[0].reconstructed_data
         for p in range(1, self.n_partitions):
-            Xp = dmd.reconstructed_data
-            Xp = Xp if p == self.n_partitions - 1 else Xp[:, :-1]
+            Xp = self[p].reconstructed_data
             X = np.hstack((X, Xp))
         return X
 
@@ -388,7 +390,7 @@ class PartitionedDMD:
         -------
         list[numpy.ndarray]
         """
-        return [dmd.singular_values for dmd in self]\
+        return [dmd.singular_values for dmd in self]
 
     def partial_modes(self, index: int) -> np.ndarray:
         """
@@ -402,7 +404,7 @@ class PartitionedDMD:
         -------
         numpy.ndarray (n_features, n_modes[index])
         """
-        return self[self._check_index(index)].modes
+        return self[index].modes
 
     def partial_dynamics(self, index: int) -> np.ndarray:
         """
@@ -416,7 +418,7 @@ class PartitionedDMD:
         -------
         numpy.ndarray (n_modes[index], *)
         """
-        return self[self._check_index(index)].dynamics
+        return self[index].dynamics
 
     def partial_reconstructed_data(self, index: int) -> np.ndarray:
         """
@@ -430,7 +432,7 @@ class PartitionedDMD:
         -------
         numpy.ndarray (n_featrues, n_snapshots[index])
         """
-        return self[self._check_index(index)].reconstructed_data
+        return self[index].reconstructed_data
 
     def partial_reconstruction_error(self, index: int) -> float:
         """
@@ -444,12 +446,11 @@ class PartitionedDMD:
         -------
         float
         """
-        return self[self._check_index(index)].reconstruction_error
+        return self[index].reconstruction_error
 
     def partial_time_interval(self, index: int) -> dict:
         """
-        Return the dictionary containing the time information for
-        the specified partition.
+        Return the time dictionary for the specified partition.
 
         Parameters
         ----------
@@ -459,26 +460,87 @@ class PartitionedDMD:
         -------
         dict
         """
-        self._check_index(index)
-        if index == 0:
-            return self[index].original_time
-        else:
-            raise NotImplementedError
+        return self[index].original_time
 
-
-
-    def _check_index(self, index: int) -> int:
+    def fit(self, X: Snapshots) -> 'PartitionedDMD':
         """
-        Check that the partition index is valid.
+        Fit the partitioned DMD model to the input data.
 
         Parameters
         ----------
-        index : int
+        X : numpy.ndarray or Iterable
+            The input snapshots.
 
         Returns
         -------
-        int
+        PartitionedDMD
         """
-        if index < 0 or index >= self.n_partitions:
-            raise ValueError("Invalid partition index.")
-        return index
+        X, Xshape = format_2darray(X)
+
+        self._snapshots = X
+        self._snapshots_shape = Xshape
+
+        # Check partitions and options
+        for i in range(self.n_partitions):
+            if self._bndrys[i] == -1:
+                self._bndrys[i] = self.n_total_snapshots - 1
+            if (self._bndrys[i] < 0 or
+                    self._bndrys[i] >= self.n_total_snapshots):
+                raise ValueError(f"{pt} is an invalid partition index.")
+
+        # Loop over each partition and fit the sub-models
+        start = 0
+        for p in range(self.n_partitions):
+            end = self._bndrys[p]
+
+            # Fit the sub-models
+            Xp = self._snapshots[:, start:end + 1]
+            self[p].fit(Xp)
+            # self[p].optimize_hyperparameters(True)
+
+            # Shift the start and end points
+            start = end + 1
+
+    def _build_partitions(self) -> None:
+        """
+        Build the sub-models on each partition.
+        """
+        if isinstance(self._dmd, DMD):
+            def builder(*args):
+                return deepcopy(self._dmd)
+
+        elif isinstance(self._dmd, list):
+            if len(self._dmd) != self.n_partitions:
+                msg = "The number of DMD sub-models does not equal " \
+                      "the number of partitions."
+                raise AssertionError(msg)
+
+            def builder(index, *args):
+                return deepcopy(self._dmd[index])
+
+        elif callable(self._dmd):
+            builder = self._dmd
+
+        else:
+            raise AssertionError("Invalid sub-model input.")
+
+        self._dmd_list.clear()
+        for p in range(self.n_partitions):
+            self._dmd_list.append(builder(p))
+
+    def print_summary(self, skip_line: bool = False) -> None:
+        """
+        Print a summary of the DMD model.
+        """
+        print()
+        print("===================================")
+        print("===== Partitioned DMD Summary =====")
+        print("===================================")
+        print(f"{'# of Modes':<20}: {sum(self.n_modes)}")
+        print(f"{'# of Snapshots':<20}: {sum(self.n_snapshots)}")
+        print(f"{'Reconstruction Error':<20}: "
+              f"{self.reconstruction_error:.3e}")
+        print(f"{'Mean Snapshot Error':<20}: "
+              f"{np.mean(self.snapshot_errors):.3e}")
+        print(f"{'Max Snapshot Error':<20}: "
+              f"{np.max(self.snapshot_errors):.3e}")

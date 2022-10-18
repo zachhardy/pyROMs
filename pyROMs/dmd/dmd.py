@@ -11,6 +11,7 @@ from typing import Union, Optional
 from collections.abc import Iterable
 
 from ..rom_base import ROMBase
+from ..utils import format_2darray
 
 SVDRank = Union[int, float]
 Snapshots = Union[np.ndarray, Iterable]
@@ -37,9 +38,11 @@ class DMD(ROMBase):
         ----------
         svd_rank : int or float, default 0
             The rank for mode truncation. If 0, use the optimal rank.
-            If a postive integer, use that rank. If a float between 0
-            and 1, use all modes with singular values greater than
-            the argument. If -1, do not truncate.
+            If a float in (0.0, 0.5], use the rank corresponding to the
+            number of singular values whose relative values are greater
+            than the argument. If a float in (0.5, 1.0), use the minimum
+            number of modes such that the energy content is greater than
+            the argument. If a positive integer, use that rank.
         exact : bool, default False
             A flag for exact or projected modes.
         opt : bool, default False
@@ -251,7 +254,7 @@ class DMD(ROMBase):
         -------
         DMD
         """
-        X, Xshape = self._format_2darray(X)
+        X, Xshape = format_2darray(X)
 
         self._snapshots = X
         self._snapshots_shape = Xshape
@@ -266,7 +269,7 @@ class DMD(ROMBase):
 
         # Peform the SVD
         self._U, self._s, self._Vstar = svd(X[:, :-1], False)
-        self._rank = self._compute_rank()
+        self._rank = self._compute_rank(self._svd_rank)
 
         # Compute and decompose the low-rank evolution operator
         self._Atilde = self._compute_atilde()
@@ -312,17 +315,17 @@ class DMD(ROMBase):
         self._opt = opt
 
         # Recompute the rank
-        self._rank = self._compute_rank()
+        self._rank = self._compute_rank(self._svd_rank)
 
         # Redo the algorithm after the SVD
-        self._Atilde = self._compute_atilde(U, s, Vstar, Y)
+        self._Atilde = self._compute_atilde()
         self._decompose_atilde()
-        self._compute_modes(U, s, Vstar, Y)
+        self._compute_modes()
         self._b = self._compute_amplitudes()
 
         return self
 
-    def set_original_time(self, value: dict) -> None:
+    def set_time_dict(self, value: dict) -> None:
         """
         Set the original time dictionary for the training snapshots.
 
@@ -333,24 +336,25 @@ class DMD(ROMBase):
         value : dict
         """
         keys = set(value.keys())
-        if keys != set({"t0", "tend", "dt"}):
+        if keys != {"t0", "tend", "dt"}:
             raise KeyError("Invalid time dictionary provided.")
 
         self.original_time = value.copy()
         self.dmd_time = value.copy()
 
-    def find_optimal_hyperparameters(self) -> None:
+    def optimize_hyperparameters(self, verbose: bool = False) -> None:
         """
         Perform a parameter search for the optimal hyper-parameters.
         """
         import itertools
 
         ranks = list(range(1, self.n_snapshots))
-        flags = [False, True]
-        cases = list(itertools.product(rank, flags, flags))
+        flags = [[False, True], [False, True]]
+        cases = list(itertools.product(ranks, *flags))
 
         # Loop over each set
-        print("\nBeginning hyper-parameter optimization...")
+        if verbose:
+            print("\nBeginning hyper-parameter optimization...")
 
         errors = []
         for rank, exact, opt in cases:
@@ -361,11 +365,12 @@ class DMD(ROMBase):
         self._svd_rank, self._exact, self._opt = cases[argmin]
         self.refit(*cases[argmin])
 
-        print(f"Hyper-parameter optimization completed.")
-        print("Optimal Parameters:")
-        print(f"\t{'# of Modes':<20}: {self._svd_rank}")
-        print(f"\t{'Exact':<20}: {self._exact}")
-        print(f"\t{'Opt':<20}: {self._opt}")
+        if verbose:
+            print(f"Hyper-parameter optimization completed.")
+            print("Optimal Parameters:")
+            print(f"\t{'# of Modes':<20}: {self._svd_rank}")
+            print(f"\t{'Exact':<20}: {self._exact}")
+            print(f"\t{'Opt':<20}: {self._opt}")
 
     def print_summary(self) -> None:
         """
@@ -459,17 +464,15 @@ class DMD(ROMBase):
             # vandermonde matrix
             vander = np.vander(self._eigvals, len(self.dmd_timesteps), True)
 
-            # svd on all snapshots
-            U, s, Vstar = svd(self._snapshots, full_matrices=False)
-
             # form system to solve
             P = np.multiply(
                 np.dot(self._modes.conj().T, self._modes),
-                np.conj(vander.dot(vander.conj(),T))
+                np.conj(np.dot(vander, vander.conj().T)),
             )
 
-            q = multi_dot([U, np.diag(s), Vstar]).conj().T
-            q = np.conj(np.diag([vander, q, self._modes]))
+            q = np.conj(np.diag(multi_dot(
+                [vander, self._snapshots.conj().T, self.modes]
+            )))
 
             # solve system
             return np.linalg.solve(P, q)

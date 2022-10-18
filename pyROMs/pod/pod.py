@@ -12,6 +12,7 @@ from typing import Union, Optional
 from collections.abc import Iterable
 
 from ..rom_base import ROMBase
+from ..utils import format_2darray
 
 
 SVDRank = Union[int, float]
@@ -27,16 +28,17 @@ class POD(ROMBase):
     plt.rcParams['text.usetex'] = True
     plt.rcParams['font.size'] = 12
 
-    def __init__(self, svd_rank: SVDRank = -1) -> None:
+    def __init__(self, svd_rank: SVDRank = 0) -> None:
         """
         Parameters
         ----------
-        svd_rank : int or float, default -1
-            The SVD rank to use for truncation. If a positive integer,
-            the minimum of this number and the maximum possible rank
-            is used. If a float between 0 and 1, the minimum rank to
-            achieve the specified energy content is used. If -1, no
-            truncation is performed.
+        svd_rank : int or float, default 0
+            The rank for mode truncation. If 0, use the optimal rank.
+            If a float in (0.0, 0.5], use the rank corresponding to the
+            number of singular values whose relative values are greater
+            than the argument. If a float in (0.5, 1.0), use the minimum
+            number of modes such that the energy content is greater than
+            the argument. If a positive integer, use that rank.
         """
         super().__init__()
         self._svd_rank = svd_rank
@@ -79,14 +81,14 @@ class POD(ROMBase):
         -------
         POD
         """
-        X, Xshape = self._format_2darray(X)
+        X, Xshape = format_2darray(X)
 
         self._snapshots = X
         self._snapshots_shape = Xshape
 
         # Perform the SVD
         self._U, self._s, self._Vstar = svd(X, False)
-        self._rank = self._compute_rank()
+        self._rank = self._compute_rank(self._svd_rank)
 
         # Compute amplitudes
         Sigma = np.diag(self._s[:self._rank])
@@ -100,19 +102,20 @@ class POD(ROMBase):
 
         Parameters
         ----------
-        svd_rank : int or float, default -1
-            The SVD rank to use for truncation. If a positive integer,
-            the minimum of this number and the maximum possible rank
-            is used. If a float between 0 and 1, the minimum rank to
-            achieve the specified energy content is used. If -1, no
-            truncation is performed.
+        svd_rank : int or float
+            The rank for mode truncation. If 0, use the optimal rank.
+            If a float in (0.0, 0.5], use the rank corresponding to the
+            number of singular values whose relative values are greater
+            than the argument. If a float in (0.5, 1.0), use the minimum
+            number of modes such that the energy content is greater than
+            the argument. If a positive integer, use that rank.
 
         Returns
         -------
         POD
         """
         self._svd_rank = svd_rank
-        self._rank = self._compute_rank()
+        self._rank = self._compute_rank(self._svd_rank)
 
         # Recompute amplitudes
         Sigma = np.diag(self._s[:self._rank])
