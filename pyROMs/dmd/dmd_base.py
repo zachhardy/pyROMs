@@ -439,10 +439,10 @@ class DMDBase(PlottingMixin):
                 rcond=None)[0]
 
         # Ensure positive amplitudes
-        # for i in range(self.n_modes):
-        #     if b[i] < 0.0:
-        #         b[i] *= -1.0
-        #         self._modes[:, i] *= -1.0
+        for i in range(self.n_modes):
+            if b[i] < 0.0:
+                b[i] *= -1.0
+                self._modes[:, i] *= -1.0
         return b
 
     def print_summary(self, skip_line: bool = False) -> None:

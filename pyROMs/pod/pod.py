@@ -22,15 +22,16 @@ class POD(PODBase):
     Proper Orthogonal Decomposition.
     """
 
-    def __init__(self, svd_rank: Union[int, float] = 0) -> None:
+    def __init__(self, svd_rank: Union[int, float] = 0,
+                 method: str ='rbf',
+                 epsilon: float = 1.0) -> None:
         super().__init__(svd_rank)
-        self._interpolation_method: str = None
+        self._method: str = method
+        self._epsilon = epsilon
+
         self._interpolant: callable = None
 
-    def fit(self, X: ndarray, Y: ndarray,
-            interpolation_method: str = 'rbf',
-            svd_rank: Union[int, float] = None,
-            **kwargs) -> 'POD':
+    def fit(self, X: ndarray, Y: ndarray, **kwargs) -> "POD":
         """
         Compute the POD of the inupt data.
 
@@ -45,8 +46,12 @@ class POD(PODBase):
             'cubic', 'nearest', 'rbf', 'rbf_<function name>', and
             'gp'.
         """
-        if svd_rank is not None:
-            self.svd_rank = svd_rank
+        if "svd_rank" in kwargs:
+            self.svd_rank = kwargs["svd_rank"]
+        if "method" in kwargs:
+            self._method = kwargs["method"]
+        if "epsilon" in kwargs:
+            self._epsilon = kwargs["epsilon"]
 
         # Format training information, define SVD flag
         X, Xshape = _row_major_2darray(X)
@@ -58,8 +63,8 @@ class POD(PODBase):
         if Y.ndim == 1:
             Y = np.atleast_2d(Y).T
         if Y.shape[0] != X.shape[0]:
-            raise ValueError('The number of parameter sets must '
-                             'match the number of snapshots.')
+            raise ValueError("The number of parameter sets must "
+                             "match the number of snapshots.")
         self._parameters = Y
 
         # Perform the SVD
@@ -77,8 +82,12 @@ class POD(PODBase):
         Vstar = self._Vstar[:self.n_modes]
         self._b = np.dot(s, Vstar)
 
-        # Create interpolator
-        self._init_interpolator(interpolation_method, **kwargs)
+        # Create interpolant
+        try:
+            kwargs = {'epsilon': self._epsilon}
+            self._init_interpolant(self._method, **kwargs)
+        except:
+            pass
 
         return self
 
@@ -97,12 +106,12 @@ class POD(PODBase):
             The low-rank representation of X.
         """
         if self.modes is None:
-            raise AssertionError('The POD model must be fit.')
+            raise AssertionError("The POD model must be fit.")
 
         if X.shape[1] != self.n_features:
             raise AssertionError(
-                'The number of features must match the number '
-                'of features in the training data.')
+                "The number of features must match the number "
+                "of features in the training data.")
         return self._modes.T @ X.T
 
     def predict(self, Y: ndarray) -> ndarray:
@@ -129,8 +138,8 @@ class POD(PODBase):
         # Check test values
         if Y.shape[1] != self.n_parameters:
             raise ValueError(
-                'The number of parameters per query must match '
-                'the number of parameters per snapshot.')
+                "The number of parameters per query must match "
+                "the number of parameters per snapshot.")
 
         # Make prediction
         amplitudes = self._interpolate(Y)
@@ -152,19 +161,19 @@ class POD(PODBase):
             the query parameters.
         """
         # Gaussian Process query
-        if self._interpolation_method != 'gp':
+        if self._method != 'gp':
             if self.n_parameters == 1:
                 methods = ['linear', 'cubic', 'nearest']
-                if self._interpolation_method in methods:
+                if self._method in methods:
                     Y = Y.ravel() if self.n_parameters == 1 else Y
-            amplitudes = self._interpolator(Y)
+            amplitudes = self._interpolant(Y)
 
         # Regular interpolation query
         else:
-            amplitudes = self._interpolator.predict(Y)
+            amplitudes = self._interpolant.predict(Y)
         return amplitudes.reshape(len(Y), self.n_modes).T
 
-    def _init_interpolator(self, method: str, **kwargs) -> None:
+    def _init_interpolant(self, method: str, **kwargs) -> None:
         """
         Private method to initialize the interpolant.
 
@@ -179,7 +188,7 @@ class POD(PODBase):
         """
         pts, vals = self._parameters, self._b.T
 
-        # Standard interpolators
+        # Standard interpolants
         if method in ['linear', 'cubic', 'nearest']:
             if self.n_parameters == 1:
                 from scipy.interpolate import interp1d
@@ -194,8 +203,8 @@ class POD(PODBase):
                 elif method == 'cubic':
                     if self.n_parameters > 2:
                         raise AssertionError(
-                            f'Cubic interpolation is only available in one- '
-                            f'and two-dimensions.')
+                            "Cubic interpolation is only available in one- "
+                            "and two-dimensions.")
                     from scipy.interpolate import CloughTocher2DInterpolator
                     interp = CloughTocher2DInterpolator(pts, vals, rescale=True)
 
@@ -203,14 +212,14 @@ class POD(PODBase):
         if 'rbf' in method:
             # default kernel to thin plate spline
             if method == 'rbf':
-                method += '_thin_plate_spline'
+                method += "_thin_plate_spline"
 
             # split to find kernel function
             if '_' in method:
                 kernel = '_'.join(method.split('_')[1:])
             else:
-                raise ValueError(f'RBF interpolators must be specified as '
-                                 f'rbf_<function_name>.')
+                raise ValueError("RBF interpolators must be specified as "
+                                 "rbf_<function_name>.")
 
             from scipy.interpolate import RBFInterpolator
             interp = RBFInterpolator(pts, vals, kernel=kernel, **kwargs)
@@ -226,5 +235,5 @@ class POD(PODBase):
             interp.fit(pts, vals)
 
         # Set the interpolator
-        self._interpolation_method = method
-        self._interpolator = interp
+        self._method = method
+        self._interpolant = interp
